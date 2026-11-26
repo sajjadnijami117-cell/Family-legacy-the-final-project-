@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
 } from './lib/supabase';
@@ -165,6 +165,26 @@ function TreeUnit({ unit, onSelect, collapsed, toggle }) {
       )}
     </div>
   );
+}
+
+class TreeErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const { members, onSelect } = this.props;
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-red-500 font-bold break-words">গাছ আঁকতে সমস্যা হয়েছে: {String(this.state.error?.message || this.state.error)}</p>
+        <p className="text-[11px] text-gray-400">আপাতত সদস্যদের তালিকা দেখানো হচ্ছে।</p>
+        <div className="flex flex-wrap gap-3">
+          {members.map(m => (
+            <button key={m.id} type="button" onClick={() => onSelect(m)} className="text-[11px] font-bold px-3 py-2 rounded-xl border">{m.name}</button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 }
 
 function FamilyTree({ members, onSelect }) {
@@ -1735,7 +1755,9 @@ export default function App() {
               <h2 className="text-lg font-bold flex items-center justify-center gap-2">🌲 আমাদের পারিবারিক বৃক্ষ</h2>
               <p className="text-xs text-gray-400 mt-1">দম্পতি ও তাঁদের সন্তান, তারপর সন্তানের দম্পতি ও তাঁদের সন্তান, এভাবে প্রজন্মের পর প্রজন্ম।</p>
             </div>
-            <FamilyTree members={members} onSelect={setSelectedMember} />
+            <TreeErrorBoundary members={members} onSelect={setSelectedMember}>
+              <FamilyTree members={members} onSelect={setSelectedMember} />
+            </TreeErrorBoundary>
           </div>
         )}
 
