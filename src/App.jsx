@@ -1,0 +1,1806 @@
+import { useState, useEffect, useMemo } from 'react';
+import {
+  UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
+  CheckCircle, ArrowRight, Eye, Phone, Briefcase, GraduationCap, Map,
+  Camera, Image as ImageIcon, Upload, Shield, UserCog, Settings,
+  Users, Calendar, MapPin, BookOpen, Award, Lock, Mail, ChevronRight,
+  BarChart3, Activity, FileText, Image, UserCheck, UserX, AlertTriangle,
+  Save, X, ChevronDown, Menu, Home, TreeDeciduous, Clock, LogIn, Crown
+} from 'lucide-react';
+
+// ==========================================
+// CONSTANTS & CONFIG
+// ==========================================
+const SUPER_ADMIN_EMAIL_HASH = "41a25acdbb4cf08444c292ad998cad0e1c1505927bb98baee8f6f2ce6a360239"; // hash of the admin email (lower case), so the address is not public
+// Passwords are never stored in plain text. These are PBKDF2-SHA256 hashes (100k iterations).
+// NOTE: this is still client-side only. Anyone can read this file in the browser, so this slows
+// guessing but is not real security. Use a backend/auth service for production.
+const SUPER_ADMIN_SALT = "e0f4bbae30c70a71602d4bdb5be39543";
+const SUPER_ADMIN_HASH = "cc94bc1ce0273a6add4e5b81f664fd09ba710c5ba0f7abc93a037c2bd6eaacb0";
+const FAMILY_CODE_SALT = "d2b27a68ac44395e72a776c996e752fd";
+const FAMILY_CODE_HASH = "72374c4c6c66ffce5f7c0c32dffe5b42505840e7627b22b42141d6900ee0188d";
+const MAX_LOGS = 200;
+const MAX_IMAGE_SIDE = 1280;
+const ADMIN_STORAGE_KEY = "family_admin_list_v4";
+const PENDING_MEMBERS_KEY = "family_pending_members_v4";
+const MEMBERS_KEY = "family_members_list_v4";
+const EVENTS_KEY = "family_events_list_v4";
+const GALLERY_KEY = "family_gallery_v4";
+const LOGS_KEY = "family_system_logs_v4";
+const AUTH_KEY = "family_is_auth_v4";
+const USER_KEY = "family_current_user_v4";
+const ADMIN_SESSION_KEY = "family_admin_session_v4";
+
+const INITIAL_MEMBERS = [
+  {
+    id: 'm_1', name: 'মরহুম আবদুল মোতালেব', role: 'Dada',
+    bio: 'আমাদের পরিবারের শ্রদ্ধেয় আদি পুরুষ ও প্রথম অভিভাবক। তাঁর সততা, কঠোর পরিশ্রম এবং আদর্শের ওপর ভিত্তি করেই আমাদের এই সুন্দর পরিবার গড়ে উঠেছে।',
+    dob: '1932-01-01', pob: 'চট্টগ্রাম, বাংলাদেশ', education: '', profession: '',
+    fatherId: '', motherId: '', spouseId: 'm_2', isDeceased: true,
+    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'm_2', name: 'মরহুমা আয়েশা খাতুন', role: 'Dadi',
+    bio: 'পরিবারের স্নেহময়ী ও পুণ্যময়ী মাতৃরূপ। যাঁর অফুরন্ত দোয়া, মমতা আর আন্তরিকতা আমাদের আজীবন পথপ্রদর্শন করবে।',
+    dob: '1938-05-10', pob: 'চট্টগ্রাম, বাংলাদেশ', education: '', profession: '',
+    fatherId: '', motherId: '', spouseId: 'm_1', isDeceased: true,
+    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    cover: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'm_3', name: 'তারিকুল ইসলাম', role: 'Father',
+    bio: 'মরহুম আবদুল মোতালেব ও মরহুমা আয়েশা খাতুনের জ্যেষ্ঠ পুত্র। পেশায় ব্যবসায়ী ও সমাজসেবক। পুরো পরিবারের বর্তমান অভিভাবক।',
+    dob: '1965-04-10', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'এম.এ, চট্টগ্রাম বিশ্ববিদ্যালয়',
+    profession: 'ব্যবসায়ী', fatherId: 'm_1', motherId: 'm_2', spouseId: 'm_4',
+    isDeceased: false, phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
+    cover: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'm_4', name: 'সাদিয়া সুলতানা', role: 'Mother',
+    bio: 'তারিকুল ইসলামের সহধর্মিণী ও পরিবারের আদর্শ গৃহিণী। সন্তানদের সুশিক্ষায় তাঁর অবদান অনস্বীকার্য।',
+    dob: '1972-09-15', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'বি.এ', profession: 'গৃহিণী',
+    fatherId: '', motherId: '', spouseId: 'm_3', isDeceased: false,
+    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+    cover: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 'm_5', name: 'আসিফ ইমতিয়াজ', role: 'Child',
+    bio: 'তারিকুল ইসলাম ও সাদিয়া সুলতানার জ্যেষ্ঠ পুত্র। পরিবারের নতুন প্রজন্মের প্রতিনিধি ও একজন সফটওয়্যার ইঞ্জিনিয়ার।',
+    dob: '1995-12-25', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'বিএসসি ইন কম্পিউটার সায়েন্স',
+    profession: 'সফটওয়্যার ইঞ্জিনিয়ার', fatherId: 'm_3', motherId: 'm_4', spouseId: '',
+    isDeceased: false, phone: '', address: 'হালিশহর, চট্টগ্রাম',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+    cover: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800'
+  }
+];
+
+const INITIAL_EVENTS = [
+  { id: 'ev_1', title: 'পারিবারিক ভিটার ভিত্তিপ্রস্তর স্থাপন', date: '1962-03-10', description: 'আমাদের পরম শ্রদ্ধেয় দাদা আবদুল মোতালেব চট্টগ্রামের ঐতিহ্যবাহী নাসিরাবাদে আমাদের নিজ বাড়ির ভিত্তিপ্রস্তর স্থাপন করেন।', category: 'Milestone', icon: '🏡' },
+  { id: 'ev_2', title: 'পারিবারিক মিলনমেলা ও ইফতার মাহফিল', date: '2026-03-20', description: 'পবিত্র রমজান উপলক্ষে চট্টগ্রামের নাসিরাবাদ বাসভবনে সকল সদস্যদের স্বতঃস্ফূর্ত অংশগ্রহণে জমকালো এক ইফতার ও দোয়া মাহফিল অনুষ্ঠিত হয়।', category: 'Celebration', icon: '✨' }
+];
+
+const INITIAL_GALLERY = [
+  { id: 'gal_1', title: 'পারিবারিক মিলনমেলার স্মৃতি', date: '2025-12-25', description: 'শীতের এক মিষ্টি সকালে পরিবারের সকলে মিলে খোশগল্পে মেতে ওঠার মুহূর্ত।', type: 'image', url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&q=80&w=600' },
+  { id: 'gal_2', title: 'আমাদের শৈশবের স্মৃতি বিজড়িত বাড়ি', date: '2024-05-14', description: 'নাসিরাবাদের আমাদের আদি পৈতৃক বাড়ি, যা আমাদের ঐতিহ্যের প্রতীক।', type: 'image', url: 'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?auto=format&fit=crop&q=80&w=600' }
+];
+
+const INITIAL_LOGS = [
+  'সিস্টেম ইনিশিয়ালাইজেশন সফলভাবে সম্পন্ন হয়েছে।',
+  'চট্টগ্রামের পৈতৃক ঐতিহ্য আর্কাইভ ডাটাবেজ সফলভাবে লোড হয়েছে।'
+];
+
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+const loadStorage = (key, fallback) => {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch { return fallback; }
+};
+
+const saveStorage = (key, data) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (err) {
+    // Usually the browser storage quota (about 5 MB) is full because of large images.
+    window.dispatchEvent(new CustomEvent('family-storage-error'));
+    return false;
+  }
+};
+
+const toHex = (buf) => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+const fromHex = (hex) => new Uint8Array(hex.match(/.{2}/g).map(h => parseInt(h, 16)));
+
+// PBKDF2-SHA256 hash of a password with a hex salt.
+const hashSecret = async (secret, saltHex) => {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromHex(saltHex), iterations: 100000 }, key, 256);
+  return toHex(bits);
+};
+
+const newSalt = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
+
+// Shrinks a picked image so it fits in browser storage.
+const compressImage = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('read failed'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('decode failed'));
+    img.onload = () => {
+      const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'অনির্ধারিত';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch { return dateStr; }
+};
+
+const getBadge = (member) => {
+  if (member.role === 'Dada') return { char: 'দ', color: 'bg-amber-600 text-white', label: 'দাদা' };
+  if (member.role === 'Dadi') return { char: 'দ', color: 'bg-rose-600 text-white', label: 'দাদী' };
+  if (member.role === 'Father') return { char: 'ব', color: 'bg-blue-600 text-white', label: 'বাবা' };
+  if (member.role === 'Mother') return { char: 'ম', color: 'bg-emerald-600 text-white', label: 'মা' };
+  if (member.spouseId && !member.fatherId && !member.motherId) return { char: 'বৌ', color: 'bg-purple-600 text-white', label: 'পুত্রবধূ' };
+  return { char: 'স', color: 'bg-indigo-500 text-white', label: 'সন্তান' };
+};
+
+// ==========================================
+// MAIN APP COMPONENT
+// ==========================================
+export default function App() {
+  // Core data states
+  const [members, setMembers] = useState(() => loadStorage(MEMBERS_KEY, INITIAL_MEMBERS));
+  const [pendingMembers, setPendingMembers] = useState(() => loadStorage(PENDING_MEMBERS_KEY, []));
+  const [events, setEvents] = useState(() => loadStorage(EVENTS_KEY, INITIAL_EVENTS));
+  const [gallery, setGallery] = useState(() => loadStorage(GALLERY_KEY, INITIAL_GALLERY));
+  const [logs, setLogs] = useState(() => loadStorage(LOGS_KEY, INITIAL_LOGS));
+  const [assistantAdmins, setAssistantAdmins] = useState(() => loadStorage(ADMIN_STORAGE_KEY, []));
+
+  // Auth states
+  const [authMode, setAuthMode] = useState('member'); // 'member' | 'admin'
+  const [isAuthenticated, setIsAuthenticated] = useState(() => loadStorage(AUTH_KEY, false));
+  const [currentUser, setCurrentUser] = useState(() => loadStorage(USER_KEY, null));
+  const [adminSession, setAdminSession] = useState(() => loadStorage(ADMIN_SESSION_KEY, null));
+
+  // UI states
+  const [themeMode, setThemeMode] = useState('light');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [adminTab, setAdminTab] = useState('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [isAddingMedia, setIsAddingMedia] = useState(false);
+  const [isEditingMember, setIsEditingMember] = useState(null);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [customAlert, setCustomAlert] = useState(null);
+  const [tempAvatar, setTempAvatar] = useState('');
+  const [tempCover, setTempCover] = useState('');
+  const [tempMediaFile, setTempMediaFile] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Derived state
+  const isAdmin = adminSession !== null;
+  const isSuperAdmin = adminSession?.role === 'super';
+  const isAssistantAdmin = adminSession?.role === 'assistant';
+  const canManageAll = isSuperAdmin;
+  const canAddPending = isSuperAdmin || isAssistantAdmin;
+
+  // Persistence
+  useEffect(() => { saveStorage(MEMBERS_KEY, members); }, [members]);
+  useEffect(() => { saveStorage(PENDING_MEMBERS_KEY, pendingMembers); }, [pendingMembers]);
+  useEffect(() => { saveStorage(EVENTS_KEY, events); }, [events]);
+  useEffect(() => { saveStorage(GALLERY_KEY, gallery); }, [gallery]);
+  useEffect(() => { saveStorage(LOGS_KEY, logs); }, [logs]);
+  useEffect(() => { saveStorage(ADMIN_STORAGE_KEY, assistantAdmins); }, [assistantAdmins]);
+  useEffect(() => { saveStorage(AUTH_KEY, isAuthenticated); }, [isAuthenticated]);
+  useEffect(() => { saveStorage(USER_KEY, currentUser); }, [currentUser]);
+  useEffect(() => { saveStorage(ADMIN_SESSION_KEY, adminSession); }, [adminSession]);
+
+  // Warn when browser storage is full (large images are the usual cause)
+  useEffect(() => {
+    const onFull = () => triggerAlert('ব্রাউজারের স্টোরেজ পূর্ণ! সর্বশেষ পরিবর্তন সংরক্ষিত হয়নি। কিছু ছবি মুছে আবার চেষ্টা করুন।', 'error');
+    window.addEventListener('family-storage-error', onFull);
+    return () => window.removeEventListener('family-storage-error', onFull);
+  }, []);
+
+  // Alert helper
+  const triggerAlert = (message, type = 'success') => {
+    setCustomAlert({ message, type });
+    setTimeout(() => setCustomAlert(null), 5000);
+  };
+
+  const addLog = (message) => {
+    const ts = new Date().toLocaleTimeString('bn-BD') + ' - ' + new Date().toLocaleDateString('bn-BD');
+    setLogs(prev => [`[${ts}] ${message}`, ...prev].slice(0, MAX_LOGS));
+  };
+
+  // Image upload handler
+  const handleImageUpload = (e, callback) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    compressImage(file)
+      .then(callback)
+      .catch(() => triggerAlert('ছবিটি পড়া যায়নি। অন্য ছবি বেছে নিন।', 'error'));
+  };
+
+  // ===== AUTH HANDLERS =====
+  const handleMemberLogin = async (e) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const memberId = data.get('memberId');
+    const email = data.get('email');
+    const familyCode = String(data.get('familyCode') || '').trim().toLowerCase();
+    if (await hashSecret(familyCode, FAMILY_CODE_SALT) !== FAMILY_CODE_HASH) {
+      triggerAlert('পারিবারিক কোড সঠিক নয়!', 'error');
+      return;
+    }
+    const matched = members.find(m => m.id === memberId);
+    if (matched) {
+      const userSession = { id: matched.id, role: matched.role, name: matched.name, email: email || `${matched.id}@family.com` };
+      setCurrentUser(userSession);
+      setIsAuthenticated(true);
+      addLog(`সদস্য "${matched.name}" সফলভাবে লগইন করেছেন`);
+      triggerAlert(`স্বাগতম, ${matched.name}! আপনার সেশন সক্রিয় হয়েছে।`, 'success');
+    } else {
+      triggerAlert('নির্বাচিত সদস্য খুঁজে পাওয়া যায়নি!', 'error');
+    }
+  };
+
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const email = String(data.get('adminEmail') || '').trim();
+    const password = String(data.get('adminPassword') || '');
+
+    // Check super admin
+    if (await hashSecret(email.toLowerCase(), SUPER_ADMIN_SALT) === SUPER_ADMIN_EMAIL_HASH && await hashSecret(password, SUPER_ADMIN_SALT) === SUPER_ADMIN_HASH) {
+      const session = { email, role: 'super', name: 'সুপার অ্যাডমিন' };
+      setAdminSession(session);
+      addLog(`সুপার অ্যাডমিন "${email}" লগইন করেছেন`);
+      triggerAlert('সুপার অ্যাডমিন প্যানেলে স্বাগতম!', 'success');
+      return;
+    }
+
+    // Check assistant admin
+    let assistant = null;
+    for (const a of assistantAdmins) {
+      if (a.email !== email) continue;
+      // Older records stored a plain password; newer ones store salt + hash.
+      const ok = a.hash ? await hashSecret(password, a.salt) === a.hash : a.password === password;
+      if (ok) { assistant = a; break; }
+    }
+    if (assistant) {
+      const session = { email, role: 'assistant', name: assistant.name };
+      setAdminSession(session);
+      addLog(`সহকারী অ্যাডমিন "${assistant.name}" লগইন করেছেন`);
+      triggerAlert(`স্বাগতম, ${assistant.name}!`, 'success');
+      return;
+    }
+
+    triggerAlert('ইমেইল অথবা পাসওয়ার্ড সঠিক নয়!', 'error');
+  };
+
+  const handleSignOut = () => {
+    if (isAdmin) {
+      addLog(`অ্যাডমিন "${adminSession?.name || adminSession?.email}" লগআউট করেছেন`);
+      setAdminSession(null);
+    } else {
+      addLog(`সদস্য "${currentUser?.name}" পোর্টাল থেকে বিদায় নিয়েছেন`);
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+    }
+    triggerAlert('আপনি সফলভাবে বিদায় নিয়েছেন।', 'info');
+  };
+
+  // ===== MEMBER CRUD =====
+  const handleAddMember = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const newId = 'm_' + Date.now();
+    const newMember = {
+      id: newId, name: f.get('name'), bio: f.get('bio') || 'পরিবারের এক আদরের সদস্য।',
+      dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
+      education: f.get('education') || '', profession: f.get('profession') || '',
+      fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
+      spouseId: f.get('spouseId') || '', isDeceased: false, role: f.get('role') || 'Child',
+      phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
+      avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      cover: tempCover || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800'
+    };
+    setMembers(prev => [...prev, newMember]);
+    setIsAddingMember(false);
+    setTempAvatar(''); setTempCover('');
+    addLog(`নতুন সদস্য "${newMember.name}" যুক্ত করা হয়েছে (by ${adminSession?.name || 'Admin'})`);
+    triggerAlert(`"${newMember.name}" সফলভাবে যুক্ত হয়েছে!`, 'success');
+  };
+
+  const handleAddPendingMember = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const newId = 'pending_' + Date.now();
+    const pending = {
+      id: newId, name: f.get('name'), bio: f.get('bio') || 'পরিবারের এক আদরের সদস্য।',
+      dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
+      education: f.get('education') || '', profession: f.get('profession') || '',
+      fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
+      spouseId: f.get('spouseId') || '', isDeceased: false, role: f.get('role') || 'Child',
+      phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
+      requestedBy: adminSession?.name || adminSession?.email,
+      requestedAt: new Date().toISOString(),
+      avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      cover: tempCover || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800'
+    };
+    setPendingMembers(prev => [...prev, pending]);
+    setTempAvatar(''); setTempCover('');
+    addLog(`পেন্ডিং সদস্য "${pending.name}" অনুরোধ পাঠানো হয়েছে`);
+    triggerAlert(`"${pending.name}" পেন্ডিং তালিকায় যুক্ত হয়েছে! সুপার অ্যাডমিন এপ্রুভ করবেন।`, 'success');
+  };
+
+  const handleApprovePending = (pendingId) => {
+    const pending = pendingMembers.find(p => p.id === pendingId);
+    if (!pending) return;
+    const approvedMember = { ...pending, id: pending.id.replace('pending_', 'm_') };
+    setMembers(prev => [...prev, approvedMember]);
+    setPendingMembers(prev => prev.filter(p => p.id !== pendingId));
+    addLog(`পেন্ডিং সদস্য "${pending.name}" এপ্রুভ করা হয়েছে`);
+    triggerAlert(`"${pending.name}" সফলভাবে এপ্রুভ হয়ে মেইন তালিকায় যুক্ত হয়েছে!`, 'success');
+  };
+
+  const handleRejectPending = (pendingId) => {
+    const pending = pendingMembers.find(p => p.id === pendingId);
+    setPendingMembers(prev => prev.filter(p => p.id !== pendingId));
+    addLog(`পেন্ডিং সদস্য "${pending?.name}" প্রত্যাখ্যান করা হয়েছে`);
+    triggerAlert('সদস্যকে প্রত্যাখ্যান করা হয়েছে।', 'info');
+  };
+
+  const handleUpdateMember = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const updatedId = isEditingMember.id;
+    setMembers(prev => prev.map(m => {
+      if (m.id === updatedId) {
+        return {
+          ...m, name: f.get('name'), bio: f.get('bio'), dob: f.get('dob'),
+          pob: f.get('pob') || 'চট্টগ্রাম', education: f.get('education') || '',
+          profession: f.get('profession') || '', phone: f.get('phone') || '',
+          address: f.get('address') || '', role: f.get('role') || m.role,
+          fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
+          spouseId: f.get('spouseId') || '',
+          avatar: tempAvatar || m.avatar, cover: tempCover || m.cover
+        };
+      }
+      return m;
+    }));
+    setIsEditingMember(null);
+    setTempAvatar(''); setTempCover('');
+    addLog(`সদস্য "${f.get('name')}" এর প্রোফাইল আপডেট করা হয়েছে`);
+    triggerAlert('সদস্যের তথ্য সফলভাবে সংশোধন করা হয়েছে।', 'success');
+  };
+
+  const handleDeleteMember = (id) => {
+    if (id === 'm_1' || id === 'm_2') {
+      triggerAlert('আদি শিকড় দাদা-দাদীর প্রোফাইল মুছা যাবে না!', 'error');
+      return;
+    }
+    const memberToDelete = members.find(m => m.id === id);
+    if (!window.confirm(`"${memberToDelete?.name}" কে মুছে ফেলবেন? এটি ফেরানো যাবে না।`)) return;
+    // Also clear links from other members so the family tree has no broken references.
+    setMembers(prev => prev.filter(m => m.id !== id).map(m => ({
+      ...m,
+      fatherId: m.fatherId === id ? '' : m.fatherId,
+      motherId: m.motherId === id ? '' : m.motherId,
+      spouseId: m.spouseId === id ? '' : m.spouseId
+    })));
+    addLog(`সদস্য "${memberToDelete?.name}" মুছে ফেলা হয়েছে`);
+    triggerAlert('সদস্যের তথ্য সরানো হয়েছে।', 'success');
+  };
+
+  // ===== EVENT CRUD =====
+  const handleAddEvent = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const newEvent = {
+      id: 'ev_' + Date.now(), title: f.get('title'), date: f.get('date'),
+      description: f.get('description'), category: f.get('category'), icon: f.get('icon') || '📌'
+    };
+    setEvents(prev => [newEvent, ...prev]);
+    setIsAddingEvent(false);
+    addLog(`নতুন ঘটনা "${newEvent.title}" যুক্ত করা হয়েছে`);
+    triggerAlert('নতুন ঘটনাটি টাইমলাইনে যুক্ত হয়েছে।', 'success');
+  };
+
+  const handleDeleteEvent = (id) => {
+    const ev = events.find(e => e.id === id);
+    if (!window.confirm(`ঘটনা "${ev?.title}" মুছে ফেলবেন?`)) return;
+    setEvents(prev => prev.filter(e => e.id !== id));
+    addLog(`ঘটনা "${ev?.title}" মুছে ফেলা হয়েছে`);
+    triggerAlert('ঘটনাটি সরানো হয়েছে।', 'info');
+  };
+
+  // ===== GALLERY CRUD =====
+  const handleAddMedia = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    if (!tempMediaFile) {
+      triggerAlert('দয়া করে ছবি নির্বাচন করুন।', 'error');
+      return;
+    }
+    const newMedia = {
+      id: 'gal_' + Date.now(), title: f.get('title') || 'নতুন পারিবারিক ছবি',
+      date: f.get('date') || new Date().toISOString().split('T')[0],
+      description: f.get('description') || '', type: f.get('type') || 'image', url: tempMediaFile
+    };
+    setGallery(prev => [newMedia, ...prev]);
+    setIsAddingMedia(false);
+    setTempMediaFile('');
+    addLog(`গ্যালারিতে "${newMedia.title}" আপলোড করা হয়েছে`);
+    triggerAlert('স্মৃতিটি গ্যালারিতে যোগ হয়েছে।', 'success');
+  };
+
+  const handleDeleteMedia = (id) => {
+    const media = gallery.find(g => g.id === id);
+    if (!window.confirm(`"${media?.title}" গ্যালারি থেকে মুছে ফেলবেন?`)) return;
+    setGallery(prev => prev.filter(g => g.id !== id));
+    addLog(`গ্যালারি থেকে "${media?.title}" মুছে ফেলা হয়েছে`);
+    triggerAlert('মিডিয়াটি গ্যালারি থেকে সরানো হয়েছে।', 'info');
+  };
+
+  // ===== ADMIN MANAGEMENT =====
+  const handleAddAdmin = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const salt = newSalt();
+    const newAdmin = {
+      id: 'admin_' + Date.now(),
+      name: f.get('adminName'),
+      email: String(f.get('adminEmail') || '').trim(),
+      salt,
+      hash: await hashSecret(String(f.get('adminPassword') || ''), salt),
+      createdAt: new Date().toISOString()
+    };
+    setAssistantAdmins(prev => [...prev, newAdmin]);
+    setIsAddingAdmin(false);
+    addLog(`নতুন সহকারী অ্যাডমিন "${newAdmin.name}" যুক্ত করা হয়েছে`);
+    triggerAlert(`"${newAdmin.name}" সহকারী অ্যাডমিন হিসেবে যুক্ত হয়েছে!`, 'success');
+  };
+
+  const handleRemoveAdmin = (adminId) => {
+    const admin = assistantAdmins.find(a => a.id === adminId);
+    if (!window.confirm(`সহকারী অ্যাডমিন "${admin?.name}" কে সরাবেন?`)) return;
+    setAssistantAdmins(prev => prev.filter(a => a.id !== adminId));
+    addLog(`সহকারী অ্যাডমিন "${admin?.name}" সরানো হয়েছে`);
+    triggerAlert('সহকারী অ্যাডমিন সরানো হয়েছে।', 'info');
+  };
+
+  // Filtered members
+  const filteredMembers = useMemo(() => {
+    return members.filter(m => {
+      return m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.profession && m.profession.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (m.pob && m.pob.toLowerCase().includes(searchQuery.toLowerCase()));
+    });
+  }, [members, searchQuery]);
+
+  // Theme classes
+  const isDark = themeMode === 'dark';
+  const theme = {
+    bg: isDark ? 'bg-[#0b140c]' : 'bg-[#FAFAF9]',
+    text: isDark ? 'text-[#FAFAF6]' : 'text-[#2C2C2C]',
+    card: isDark ? 'bg-[#163018] border-white/5' : 'bg-white border-gray-100',
+    cardHover: isDark ? 'hover:bg-[#1d3d1f]' : 'hover:bg-gray-50',
+    input: isDark ? 'border-white/10 text-white bg-[#112212]' : 'border-gray-200 text-black bg-white',
+    nav: 'bg-[#1E3F20]',
+    accent: '#D4AF37',
+    gold: 'text-[#D4AF37]',
+    goldBg: 'bg-[#D4AF37]',
+  };
+
+  // ==========================================
+  // RENDER: LOGIN SCREEN
+  // ==========================================
+  if (!isAuthenticated && !isAdmin) {
+    return (
+      <div className={`min-h-screen ${theme.bg} ${theme.text} flex items-center justify-center p-4 transition-colors duration-300`}>
+        <div className={`max-w-lg w-full rounded-3xl shadow-2xl overflow-hidden border-2 border-[#D4AF37]/50 ${isDark ? 'bg-[#163018]/95' : 'bg-white'} transition-all duration-300`}>
+
+          {/* Header */}
+          <div className="bg-[#1E3F20] text-white p-8 text-center relative border-b border-[#D4AF37]">
+            <button onClick={() => setThemeMode(isDark ? 'light' : 'dark')} className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-[#D4AF37]">
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <div className="w-16 h-16 rounded-full border-2 border-[#D4AF37] mx-auto flex items-center justify-center bg-white/10 mb-3">
+              <span className="text-3xl">🌳</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">আবদুল মোতালেব ও আয়েশা খাতুন পরিবার</h1>
+            <p className="text-xs text-[#D4AF37] mt-1.5 font-medium tracking-wide">সুরক্ষিত পারিবারিক ঐতিহ্য ও আর্কাইভ পোর্টাল</p>
+          </div>
+
+          {/* Auth Mode Tabs */}
+          <div className="p-6">
+            <div className="flex border-b border-gray-200 dark:border-white/10 mb-6">
+              <button onClick={() => setAuthMode('member')} className={`flex-1 pb-3 text-xs md:text-sm font-bold transition-all ${authMode === 'member' ? 'border-b-2 border-[#D4AF37] text-[#D4AF37]' : 'text-gray-400'}`}>
+                <Users className="w-4 h-4 inline mr-1" /> সদস্য লগইন
+              </button>
+              <button onClick={() => setAuthMode('admin')} className={`flex-1 pb-3 text-xs md:text-sm font-bold transition-all ${authMode === 'admin' ? 'border-b-2 border-[#D4AF37] text-[#D4AF37]' : 'text-gray-400'}`}>
+                <Shield className="w-4 h-4 inline mr-1" /> অ্যাডমিন লগইন
+              </button>
+            </div>
+
+            {customAlert && (
+              <div className={`mb-4 p-3 rounded-xl border text-xs font-bold flex items-center gap-2 ${customAlert.type === 'error' ? 'bg-red-100 border-red-300 text-red-800' : customAlert.type === 'info' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800'}`}>
+                <CheckCircle className="w-4 h-4 flex-shrink-0" /> <span>{customAlert.message}</span>
+              </div>
+            )}
+
+            {/* Member Login Form */}
+            {authMode === 'member' && (
+              <form onSubmit={handleMemberLogin} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">নিবন্ধিত সদস্য নির্বাচন করুন</label>
+                  <select name="memberId" required className={`w-full border rounded-xl p-3 bg-transparent font-medium ${theme.input}`}>
+                    <option value="">আপনার নাম বেছে নিন</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id} className="text-black">{m.name} {m.isDeceased ? '(মরহুম)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ইমেইল ঠিকানা</label>
+                  <input required name="email" type="email" placeholder="example@family.com" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Lock className="w-3 h-3" /> পারিবারিক কোড</label>
+                  <input required name="familyCode" type="password" autoComplete="off" placeholder="পরিবারের গোপন কোড" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <button type="submit" className="w-full bg-[#1E3F20] text-white p-3.5 rounded-xl font-bold hover:bg-[#112212] transition-all border border-[#D4AF37] text-sm">
+                  পারিবারিক আর্কাইভে প্রবেশ করুন
+                </button>
+              </form>
+            )}
+
+            {/* Admin Login Form */}
+            {authMode === 'admin' && (
+              <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <p className="font-bold text-amber-800 dark:text-[#D4AF37] flex items-center gap-1.5 mb-1">
+                    <Shield className="w-4 h-4" /> অ্যাডমিন প্যানেল
+                  </p>
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                    শুধুমাত্র অনুমোদিত অ্যাডমিনরা এখানে প্রবেশ করতে পারবেন।
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> অ্যাডমিন ইমেইল</label>
+                  <input required name="adminEmail" type="email" placeholder="admin@example.com" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Lock className="w-3 h-3" /> পাসওয়ার্ড</label>
+                  <input required name="adminPassword" type="password" placeholder="••••••••" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <button type="submit" className="w-full bg-[#1E3F20] text-white p-3.5 rounded-xl font-bold hover:bg-[#112212] transition-all border border-[#D4AF37] text-sm flex items-center justify-center gap-2">
+                  <Shield className="w-4 h-4" /> অ্যাডমিন প্যানেলে প্রবেশ করুন
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // RENDER: ADMIN DASHBOARD
+  // ==========================================
+  if (isAdmin) {
+    return (
+      <div className={`min-h-screen flex ${theme.bg} ${theme.text} transition-colors duration-300`}>
+
+        {/* Alert */}
+        {customAlert && (
+          <div className={`fixed top-4 right-4 z-[60] p-4 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-3 transition-all duration-300 ${customAlert.type === 'error' ? 'bg-red-100 border-red-300 text-red-800' : customAlert.type === 'info' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800'}`}>
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{customAlert.message}</span>
+          </div>
+        )}
+
+        {/* Sidebar */}
+        <aside className={`hidden lg:flex flex-col w-64 ${theme.nav} text-white border-r border-[#D4AF37] fixed h-full z-40`}>
+          <div className="p-6 border-b border-[#D4AF37]/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full border border-[#D4AF37] bg-white/10 flex items-center justify-center">
+                {isSuperAdmin ? <Crown className="w-5 h-5 text-[#D4AF37]" /> : <UserCog className="w-5 h-5 text-[#D4AF37]" />}
+              </div>
+              <div>
+                <h2 className="font-bold text-sm">{adminSession?.name}</h2>
+                <p className="text-[10px] text-[#D4AF37]">{isSuperAdmin ? 'সুপার অ্যাডমিন' : 'সহকারী অ্যাডমিন'}</p>
+              </div>
+            </div>
+          </div>
+
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <button onClick={() => setAdminTab('overview')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'overview' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+              <BarChart3 className="w-4 h-4" /> ওভারভিউ
+            </button>
+            <button onClick={() => setAdminTab('members')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'members' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+              <Users className="w-4 h-4" /> সদস্য ব্যবস্থাপনা
+            </button>
+            {(isSuperAdmin) && (
+              <button onClick={() => setAdminTab('pending')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'pending' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+                <UserCheck className="w-4 h-4" /> পেন্ডিং অনুরোধ
+                {pendingMembers.length > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{pendingMembers.length}</span>
+                )}
+              </button>
+            )}
+            {canAddPending && (
+              <button onClick={() => setAdminTab('addPending')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'addPending' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+                <UserPlus className="w-4 h-4" /> নতুন সদস্য যোগ করুন
+              </button>
+            )}
+            <button onClick={() => setAdminTab('events')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'events' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+              <Calendar className="w-4 h-4" /> টাইমলাইন / ইভেন্ট
+            </button>
+            <button onClick={() => setAdminTab('gallery')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'gallery' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+              <Image className="w-4 h-4" /> গ্যালারি ব্যবস্থাপনা
+            </button>
+            <button onClick={() => setAdminTab('logs')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'logs' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+              <Activity className="w-4 h-4" /> সিস্টেম লগ
+            </button>
+            {isSuperAdmin && (
+              <button onClick={() => setAdminTab('admins')} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === 'admins' ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+                <Shield className="w-4 h-4" /> অ্যাডমিন ব্যবস্থাপনা
+              </button>
+            )}
+          </nav>
+
+          <div className="p-4 border-t border-[#D4AF37]/50 space-y-2">
+            <button onClick={() => setThemeMode(isDark ? 'light' : 'dark')} className="w-full text-left px-4 py-2 rounded-xl text-xs font-bold hover:bg-white/10 flex items-center gap-2 transition">
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} থিম পরিবর্তন
+            </button>
+            <button onClick={handleSignOut} className="w-full text-left px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-500/20 text-red-400 flex items-center gap-2 transition">
+              <LogOut className="w-4 h-4" /> লগআউট
+            </button>
+          </div>
+        </aside>
+
+        {/* Mobile Header */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#1E3F20] text-white border-b border-[#D4AF37] px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isSuperAdmin ? <Crown className="w-5 h-5 text-[#D4AF37]" /> : <UserCog className="w-5 h-5 text-[#D4AF37]" />}
+            <span className="font-bold text-sm">{adminSession?.name}</span>
+          </div>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-lg hover:bg-white/10">
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
+            <div className={`absolute right-0 top-12 bottom-0 w-64 ${theme.nav} text-white p-4 space-y-1 overflow-y-auto`} onClick={e => e.stopPropagation()}>
+              {[
+                { tab: 'overview', icon: BarChart3, label: 'ওভারভিউ' },
+                { tab: 'members', icon: Users, label: 'সদস্য ব্যবস্থাপনা' },
+                ...(isSuperAdmin ? [{ tab: 'pending', icon: UserCheck, label: 'পেন্ডিং অনুরোধ', badge: pendingMembers.length }] : []),
+                ...(canAddPending ? [{ tab: 'addPending', icon: UserPlus, label: 'নতুন সদস্য যোগ করুন' }] : []),
+                { tab: 'events', icon: Calendar, label: 'টাইমলাইন / ইভেন্ট' },
+                { tab: 'gallery', icon: Image, label: 'গ্যালারি ব্যবস্থাপনা' },
+                { tab: 'logs', icon: Activity, label: 'সিস্টেম লগ' },
+                ...(isSuperAdmin ? [{ tab: 'admins', icon: Shield, label: 'অ্যাডমিন ব্যবস্থাপনা' }] : []),
+              ].map(item => (
+                <button key={item.tab} onClick={() => { setAdminTab(item.tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${adminTab === item.tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+                  <item.icon className="w-4 h-4" /> {item.label}
+                  {item.badge > 0 && <span className="ml-auto bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+                </button>
+              ))}
+              <button onClick={() => { setThemeMode(isDark ? 'light' : 'dark'); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-white/10 flex items-center gap-2">
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} থিম পরিবর্তন
+              </button>
+              <button onClick={handleSignOut} className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-red-500/20 text-red-400 flex items-center gap-2">
+                <LogOut className="w-4 h-4" /> লগআউট
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <main className="flex-1 lg:ml-64 p-4 lg:p-8 mt-12 lg:mt-0 max-w-7xl mx-auto w-full">
+
+          {/* Admin Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold">
+                {adminTab === 'overview' && '📊 অ্যাডমিন ড্যাশবোর্ড ওভারভিউ'}
+                {adminTab === 'members' && '👥 সদস্য ব্যবস্থাপনা'}
+                {adminTab === 'pending' && '⏳ পেন্ডিং সদস্য অনুরোধ'}
+                {adminTab === 'addPending' && '➕ নতুন সদস্য যোগ করুন'}
+                {adminTab === 'events' && '📅 টাইমলাইন / ইভেন্ট ব্যবস্থাপনা'}
+                {adminTab === 'gallery' && '🖼️ গ্যালারি ব্যবস্থাপনা'}
+                {adminTab === 'logs' && '📋 সিস্টেম লগ'}
+                {adminTab === 'admins' && '🛡️ অ্যাডমিন ব্যবস্থাপনা'}
+              </h1>
+              <p className="text-xs text-gray-400 mt-1">
+                {isSuperAdmin ? 'সুপার অ্যাডমিন হিসেবে আপনার সম্পূর্ণ নিয়ন্ত্রণ' : 'সহকারী অ্যাডমিন হিসেবে আপনার সীমিত নিয়ন্ত্রণ'}
+              </p>
+            </div>
+          </div>
+
+          {/* ===== ADMIN TAB: OVERVIEW ===== */}
+          {adminTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard icon={Users} label="মোট সদস্য" value={`${members.length} জন`} color="text-emerald-500" bg="bg-emerald-100 dark:bg-emerald-950/40" theme={theme} />
+                <StatCard icon={UserCheck} label="পেন্ডিং" value={`${pendingMembers.length} জন`} color="text-amber-500" bg="bg-amber-100 dark:bg-amber-950/40" theme={theme} />
+                <StatCard icon={Calendar} label="মোট ইভেন্ট" value={`${events.length}টি`} color="text-blue-500" bg="bg-blue-100 dark:bg-blue-950/40" theme={theme} />
+                <StatCard icon={Image} label="গ্যালারি" value={`${gallery.length}টি`} color="text-purple-500" bg="bg-purple-100 dark:bg-purple-950/40" theme={theme} />
+              </div>
+
+              {/* Recent Activity */}
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4">
+                  <Activity className="w-4 h-4 text-[#D4AF37]" /> সাম্প্রতিক কার্যক্রম
+                </h3>
+                <div className={`font-mono text-[10px] space-y-2 max-h-[300px] overflow-y-auto ${isDark ? 'text-[#D4AF37]' : 'text-emerald-700'} ${isDark ? 'bg-[#0b140c]' : 'bg-gray-50'} p-4 rounded-xl`}>
+                  {logs.slice(0, 15).map((log, i) => (
+                    <div key={i} className="border-b border-white/5 pb-1">&gt; {log}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4">
+                  <Settings className="w-4 h-4 text-[#D4AF37]" /> দ্রুত পদক্ষেপ
+                </h3>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {canAddPending && (
+                    <button onClick={() => setAdminTab('addPending')} className="p-4 rounded-xl bg-[#1E3F20] text-white hover:bg-[#2a5230] transition text-xs font-bold flex flex-col items-center gap-2">
+                      <UserPlus className="w-5 h-5 text-[#D4AF37]" /> নতুন সদস্য যোগ
+                    </button>
+                  )}
+                  {isSuperAdmin && (
+                    <button onClick={() => { setIsAddingEvent(true); }} className="p-4 rounded-xl bg-[#1E3F20] text-white hover:bg-[#2a5230] transition text-xs font-bold flex flex-col items-center gap-2">
+                      <Calendar className="w-5 h-5 text-[#D4AF37]" /> ইভেন্ট যোগ
+                    </button>
+                  )}
+                  {isSuperAdmin && (
+                    <button onClick={() => { setIsAddingMedia(true); }} className="p-4 rounded-xl bg-[#1E3F20] text-white hover:bg-[#2a5230] transition text-xs font-bold flex flex-col items-center gap-2">
+                      <Image className="w-5 h-5 text-[#D4AF37]" /> গ্যালারিতে ছবি
+                    </button>
+                  )}
+                  {isSuperAdmin && (
+                    <button onClick={() => setAdminTab('admins')} className="p-4 rounded-xl bg-[#1E3F20] text-white hover:bg-[#2a5230] transition text-xs font-bold flex flex-col items-center gap-2">
+                      <Shield className="w-5 h-5 text-[#D4AF37]" /> অ্যাডমিন যোগ
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: MEMBERS ===== */}
+          {adminTab === 'members' && (
+            <div className="space-y-4">
+              <div className={`p-4 rounded-2xl border ${theme.card}`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+                    <input type="text" placeholder="নাম, পেশা বা জেলা লিখে খুঁজুন..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={`w-full text-xs pl-10 pr-4 py-3 rounded-xl bg-transparent border ${theme.input}`} />
+                  </div>
+                  {canAddPending && (
+                    <button onClick={() => setAdminTab('addPending')} className="bg-[#D4AF37] text-black font-bold text-xs px-4 py-3 rounded-xl flex items-center gap-2 hover:bg-[#b5942d] transition">
+                      <Plus className="w-4 h-4" /> নতুন সদস্য
+                    </button>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className={`border-b ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+                        <th className="text-left py-3 px-2 font-bold text-[10px] uppercase text-gray-400">সদস্য</th>
+                        <th className="text-left py-3 px-2 font-bold text-[10px] uppercase text-gray-400">ভূমিকা</th>
+                        <th className="text-left py-3 px-2 font-bold text-[10px] uppercase text-gray-400">পেশা</th>
+                        <th className="text-left py-3 px-2 font-bold text-[10px] uppercase text-gray-400">ঠিকানা</th>
+                        <th className="text-left py-3 px-2 font-bold text-[10px] uppercase text-gray-400">স্ট্যাটাস</th>
+                        {canManageAll && <th className="text-right py-3 px-2 font-bold text-[10px] uppercase text-gray-400">অ্যাকশন</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                      {filteredMembers.map(m => (
+                        <tr key={m.id} className={`${theme.cardHover} transition`}>
+                          <td className="py-3 px-2">
+                            <div className="flex items-center gap-2">
+                              <img src={m.avatar} alt={m.name} className="w-8 h-8 rounded-full object-cover border border-[#D4AF37]" />
+                              <span className="font-bold">{m.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">{m.role}</td>
+                          <td className="py-3 px-2 text-gray-400">{m.profession || '-'}</td>
+                          <td className="py-3 px-2 text-gray-400">{m.address || '-'}</td>
+                          <td className="py-3 px-2">
+                            {m.isDeceased ? (
+                              <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full text-[9px] font-bold">মরহুম</span>
+                            ) : (
+                              <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full text-[9px] font-bold">সক্রিয়</span>
+                            )}
+                          </td>
+                          {canManageAll && (
+                            <td className="py-3 px-2 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button onClick={() => setSelectedMember(m)} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition" title="দেখুন">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => setIsEditingMember(m)} className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-white transition" title="এডিট">
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                {!m.isDeceased && (
+                                  <button onClick={() => handleDeleteMember(m.id)} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition" title="ডিলিট">
+                                    <Trash className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredMembers.length === 0 && (
+                    <div className="text-center py-8 text-gray-400 text-xs">🔍 কোনো সদস্য খুঁজে পাওয়া যায়নি।</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: PENDING ===== */}
+          {adminTab === 'pending' && isSuperAdmin && (
+            <div className="space-y-4">
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4">
+                  <UserCheck className="w-4 h-4 text-[#D4AF37]" /> পেন্ডিং সদস্য অনুরোধ
+                  {pendingMembers.length > 0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">{pendingMembers.length} জন অপেক্ষমান</span>}
+                </h3>
+
+                {pendingMembers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-emerald-500" />
+                    <p className="font-bold">কোনো পেন্ডিং অনুরোধ নেই!</p>
+                    <p className="text-xs mt-1">সকল সদস্য অনুরোধ এপ্রুভ করা হয়েছে।</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingMembers.map(p => (
+                      <div key={p.id} className={`p-4 rounded-xl border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <img src={p.avatar} alt={p.name} className="w-12 h-12 rounded-full object-cover border-2 border-[#D4AF37]" />
+                            <div>
+                              <h4 className="font-bold text-sm">{p.name}</h4>
+                              <p className="text-[10px] text-gray-400">{p.profession || 'পেশা অনির্ধারিত'} • {p.pob || 'চট্টগ্রাম'}</p>
+                              <p className="text-[10px] text-[#D4AF37]">অনুরোধকারী: {p.requestedBy || 'অজানা'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setSelectedMember(p)} className="px-3 py-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white transition text-xs font-bold flex items-center gap-1">
+                              <Eye className="w-3.5 h-3.5" /> দেখুন
+                            </button>
+                            <button onClick={() => handleApprovePending(p.id)} className="px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition text-xs font-bold flex items-center gap-1">
+                              <CheckCircle className="w-3.5 h-3.5" /> এপ্রুভ
+                            </button>
+                            <button onClick={() => handleRejectPending(p.id)} className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition text-xs font-bold flex items-center gap-1">
+                              <XCircle className="w-3.5 h-3.5" /> প্রত্যাখ্যান
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: ADD PENDING / ADD MEMBER ===== */}
+          {adminTab === 'addPending' && canAddPending && (
+            <div className="space-y-4">
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4">
+                  <UserPlus className="w-4 h-4 text-[#D4AF37]" />
+                  {isSuperAdmin ? 'নতুন সদস্য সরাসরি যোগ করুন' : 'পেন্ডিং সদস্য অনুরোধ পাঠান'}
+                </h3>
+                <form onSubmit={isSuperAdmin ? handleAddMember : handleAddPending} className="space-y-4 text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পূর্ণ নাম <span className="text-red-500">*</span></label>
+                      <input required name="name" type="text" placeholder="যেমন: রহিম উদ্দিন" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ভূমিকা</label>
+                      <select name="role" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                        <option value="Child">সন্তান / সদস্য</option>
+                        <option value="Father">পিতা / কাকা</option>
+                        <option value="Mother">মাতা / কাকিমা</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
+                    <textarea name="bio" rows="2" placeholder="সংক্ষিপ্ত জীবনী..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পেশা</label>
+                      <input name="profession" type="text" placeholder="যেমন: ব্যবসায়ী" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">শিক্ষাগত যোগ্যতা</label>
+                      <input name="education" type="text" placeholder="যেমন: বিএসসি" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জন্ম তারিখ</label>
+                      <input name="dob" type="date" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মোবাইল</label>
+                      <input name="phone" type="text" placeholder="01xxxxxxxxx" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জন্মস্থান</label>
+                      <input name="pob" type="text" placeholder="চট্টগ্রাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বর্তমান ঠিকানা</label>
+                    <input name="address" type="text" placeholder="যেমন: নাসিরাবাদ, চট্টগ্রাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পিতা</label>
+                      <select name="fatherId" className={`w-full border rounded-xl p-2 bg-transparent text-xs ${theme.input}`}>
+                        <option value="">নির্বাচন করুন</option>
+                        {members.map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মাতা</label>
+                      <select name="motherId" className={`w-full border rounded-xl p-2 bg-transparent text-xs ${theme.input}`}>
+                        <option value="">নির্বাচন করুন</option>
+                        {members.map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">স্বামী/স্ত্রী</label>
+                      <select name="spouseId" className={`w-full border rounded-xl p-2 bg-transparent text-xs ${theme.input}`}>
+                        <option value="">নির্বাচন করুন</option>
+                        {members.map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Camera className="w-3.5 h-3.5 text-[#D4AF37]" /> প্রোফাইল ছবি</label>
+                      <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setTempAvatar)} className={`w-full border rounded-xl p-2 bg-transparent text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#D4AF37]/20 file:text-[#D4AF37]`} />
+                      {tempAvatar && <p className="text-[10px] text-emerald-500 mt-1">✓ লোড হয়েছে</p>}
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5 text-[#D4AF37]" /> কভার ফটো</label>
+                      <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setTempCover)} className={`w-full border rounded-xl p-2 bg-transparent text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#D4AF37]/20 file:text-[#D4AF37]`} />
+                      {tempCover && <p className="text-[10px] text-emerald-500 mt-1">✓ লোড হয়েছে</p>}
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-[#1E3F20] text-white p-3.5 rounded-xl font-bold hover:bg-[#2a5230] transition-all border border-[#D4AF37] text-sm flex items-center justify-center gap-2">
+                    {isSuperAdmin ? <><CheckCircle className="w-4 h-4" /> সরাসরি যুক্ত করুন</> : <><UserPlus className="w-4 h-4" /> পেন্ডিং এ পাঠান</>}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: EVENTS ===== */}
+          {adminTab === 'events' && (
+            <div className="space-y-4">
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2"><Calendar className="w-4 h-4 text-[#D4AF37]" /> টাইমলাইন / ইভেন্ট তালিকা</h3>
+                  {isSuperAdmin && (
+                    <button onClick={() => setIsAddingEvent(true)} className="bg-[#D4AF37] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#b5942d] transition">
+                      <Plus className="w-4 h-4" /> ইভেন্ট যোগ
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {events.map(ev => (
+                    <div key={ev.id} className={`p-4 rounded-xl border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-gray-50 border-gray-100'} flex items-center justify-between`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{ev.icon}</span>
+                        <div>
+                          <h4 className="font-bold text-xs">{ev.title}</h4>
+                          <p className="text-[10px] text-gray-400">{formatDate(ev.date)} • {ev.category}</p>
+                          <p className="text-[11px] text-gray-500 mt-1 max-w-md">{ev.description}</p>
+                        </div>
+                      </div>
+                      {isSuperAdmin && (
+                        <button onClick={() => handleDeleteEvent(ev.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition">
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {events.length === 0 && <div className="text-center py-8 text-gray-400 text-xs">কোনো ইভেন্ট নেই।</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: GALLERY ===== */}
+          {adminTab === 'gallery' && (
+            <div className="space-y-4">
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2"><Image className="w-4 h-4 text-[#D4AF37]" /> গ্যালারি তালিকা</h3>
+                  {isSuperAdmin && (
+                    <button onClick={() => setIsAddingMedia(true)} className="bg-[#D4AF37] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#b5942d] transition">
+                      <Upload className="w-4 h-4" /> ছবি আপলোড
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {gallery.map(item => (
+                    <div key={item.id} className={`rounded-xl overflow-hidden border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-white border-gray-100'}`}>
+                      <div className="aspect-video bg-black/10">
+                        <img src={item.url} alt={item.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="p-3">
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-xs">{item.title}</h4>
+                          {isSuperAdmin && (
+                            <button onClick={() => handleDeleteMedia(item.id)} className="p-1 rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition">
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400">{item.date}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {gallery.length === 0 && <div className="col-span-full text-center py-8 text-gray-400 text-xs">গ্যালারি খালি।</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: LOGS ===== */}
+          {adminTab === 'logs' && (
+            <div className="space-y-4">
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-[#D4AF37]" /> সিস্টেম কার্যক্রম লগ</h3>
+                <div className={`p-4 rounded-xl font-mono text-[10px] space-y-2 max-h-[500px] overflow-y-auto ${isDark ? 'bg-[#0b140c] text-[#D4AF37]' : 'bg-gray-900 text-emerald-400'}`}>
+                  {logs.map((log, i) => (
+                    <div key={i} className="border-b border-white/5 pb-1">&gt; {log}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== ADMIN TAB: ADMIN MANAGEMENT ===== */}
+          {adminTab === 'admins' && isSuperAdmin && (
+            <div className="space-y-4">
+              {/* Super Admin Card */}
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4"><Crown className="w-4 h-4 text-[#D4AF37]" /> সুপার অ্যাডমিন</h3>
+                <div className={`p-4 rounded-xl border-2 border-[#D4AF37]/50 ${isDark ? 'bg-[#1d3d1f]' : 'bg-amber-50'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#1E3F20] flex items-center justify-center border-2 border-[#D4AF37]">
+                      <Crown className="w-6 h-6 text-[#D4AF37]" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm">সুপার অ্যাডমিন</h4>
+                      <p className="text-[10px] text-[#D4AF37]">সম্পূর্ণ নিয়ন্ত্রণ • A-Z সকল অ্যাক্সেস</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assistant Admins */}
+              <div className={`p-6 rounded-2xl border ${theme.card}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2"><UserCog className="w-4 h-4 text-[#D4AF37]" /> সহকারী অ্যাডমিন তালিকা</h3>
+                  <button onClick={() => setIsAddingAdmin(true)} className="bg-[#D4AF37] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#b5942d] transition">
+                    <Plus className="w-4 h-4" /> সহকারী যোগ
+                  </button>
+                </div>
+
+                {assistantAdmins.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <UserCog className="w-12 h-12 mx-auto mb-3" />
+                    <p className="font-bold">কোনো সহকারী অ্যাডমিন নেই</p>
+                    <p className="text-xs mt-1">নতুন সহকারী অ্যাডমিন যোগ করতে উপরের বাটনে ক্লিক করুন।</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {assistantAdmins.map(admin => (
+                      <div key={admin.id} className={`p-4 rounded-xl border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-gray-50 border-gray-100'} flex items-center justify-between`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-[#1E3F20] flex items-center justify-center border border-[#D4AF37]">
+                            <UserCog className="w-5 h-5 text-[#D4AF37]" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs">{admin.name}</h4>
+                            <p className="text-[10px] text-gray-400">{admin.email}</p>
+                            <p className="text-[9px] text-[#D4AF37]">যোগ করেছেন: {formatDate(admin.createdAt)}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => handleRemoveAdmin(admin.id)} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition" title="সরান">
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ===== MODALS ===== */}
+
+        {/* View Member Modal */}
+        {selectedMember && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedMember(null)}>
+            <div className={`max-w-lg w-full rounded-3xl overflow-hidden border ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+              <div className="relative h-32 bg-cover bg-center" style={{ backgroundImage: `url(${selectedMember.cover})` }}>
+                <div className="absolute inset-0 bg-black/30" />
+                <button onClick={() => setSelectedMember(null)} className="absolute top-3 right-3 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 -mt-12 relative">
+                <img src={selectedMember.avatar} alt={selectedMember.name} className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-[#1E3F20] shadow-xl" />
+                <h3 className="text-lg font-extrabold mt-3">{selectedMember.name}</h3>
+                <span className="inline-block bg-[#D4AF37]/20 text-[#D4AF37] font-bold text-[10px] px-3 py-1 rounded-full mt-1">
+                  {selectedMember.isDeceased ? 'মরহুম পূর্বপুরুষ' : selectedMember.role}
+                </span>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic leading-relaxed">{selectedMember.bio || 'জীবনী পাওয়া যায়নি।'}</p>
+                {!selectedMember.isDeceased && (
+                  <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
+                    <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={formatDate(selectedMember.dob)} />
+                    <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={selectedMember.pob || 'চট্টগ্রাম'} />
+                    <InfoRow icon={<Briefcase className="w-3.5 h-3.5 text-emerald-500" />} label="পেশা" value={selectedMember.profession || '-'} />
+                    <InfoRow icon={<GraduationCap className="w-3.5 h-3.5 text-emerald-500" />} label="শিক্ষা" value={selectedMember.education || '-'} />
+                    <InfoRow icon={<Phone className="w-3.5 h-3.5 text-emerald-500" />} label="মোবাইল" value={selectedMember.phone || 'গোপন'} />
+                    <InfoRow icon={<Map className="w-3.5 h-3.5 text-emerald-500" />} label="ঠিকানা" value={selectedMember.address || '-'} />
+                  </div>
+                )}
+                <div className="mt-4 p-3 bg-gray-50 dark:bg-black/20 rounded-xl text-[11px] space-y-1 border">
+                  <p>👪 <strong>পিতা:</strong> {members.find(m => m.id === selectedMember.fatherId)?.name || 'অনির্ধারিত'}</p>
+                  <p>👩 <strong>মাতা:</strong> {members.find(m => m.id === selectedMember.motherId)?.name || 'অনির্ধারিত'}</p>
+                  <p>💍 <strong>সঙ্গী:</strong> {members.find(m => m.id === selectedMember.spouseId)?.name || 'অনির্ধারিত'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Member Modal */}
+        {isEditingMember && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsEditingMember(null)}>
+            <form onSubmit={handleUpdateMember} className={`max-w-xl w-full p-6 rounded-3xl border text-xs space-y-4 max-h-[90vh] overflow-y-auto ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold border-b pb-3 border-gray-100 dark:border-white/5">✏️ সদস্য প্রোফাইল সম্পাদনা</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পূর্ণ নাম</label>
+                  <input required name="name" type="text" defaultValue={isEditingMember.name} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ভূমিকা</label>
+                  <select name="role" defaultValue={isEditingMember.role} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                    <option value="Father">পিতা / কাকা</option>
+                    <option value="Mother">মাতা / কাকিমা</option>
+                    <option value="Child">সন্তান / সদস্য</option>
+                    <option value="Dada">দাদা</option>
+                    <option value="Dadi">দাদী</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
+                <textarea name="bio" rows="3" defaultValue={isEditingMember.bio} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পেশা</label>
+                  <input name="profession" type="text" defaultValue={isEditingMember.profession} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">শিক্ষা</label>
+                  <input name="education" type="text" defaultValue={isEditingMember.education} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জন্ম তারিখ</label>
+                  <input name="dob" type="date" defaultValue={isEditingMember.dob} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মোবাইল</label>
+                  <input name="phone" type="text" defaultValue={isEditingMember.phone} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[9px] text-gray-400 uppercase mb-1">পিতা</label>
+                  <select name="fatherId" defaultValue={isEditingMember.fatherId} className={`w-full text-[11px] border rounded-lg p-2 bg-transparent ${theme.input}`}>
+                    <option value="">অনির্ধারিত</option>
+                    {members.filter(m => m.id !== isEditingMember.id).map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] text-gray-400 uppercase mb-1">মাতা</label>
+                  <select name="motherId" defaultValue={isEditingMember.motherId} className={`w-full text-[11px] border rounded-lg p-2 bg-transparent ${theme.input}`}>
+                    <option value="">অনির্ধারিত</option>
+                    {members.filter(m => m.id !== isEditingMember.id).map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] text-gray-400 uppercase mb-1">সঙ্গী</label>
+                  <select name="spouseId" defaultValue={isEditingMember.spouseId} className={`w-full text-[11px] border rounded-lg p-2 bg-transparent ${theme.input}`}>
+                    <option value="">অনির্ধারিত</option>
+                    {members.filter(m => m.id !== isEditingMember.id).map(m => <option key={m.id} value={m.id} className="text-black">{m.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Camera className="w-3.5 h-3.5 text-[#D4AF37]" /> প্রোফাইল ছবি</label>
+                  <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setTempAvatar)} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#D4AF37]/20 file:text-[#D4AF37]" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5 text-[#D4AF37]" /> কভার ছবি</label>
+                  <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setTempCover)} className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#D4AF37]/20 file:text-[#D4AF37]" />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#c29f2e] transition flex items-center justify-center gap-2">
+                  <Save className="w-4 h-4" /> আপডেট করুন
+                </button>
+                <button type="button" onClick={() => setIsEditingMember(null)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">
+                  বাতিল
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Add Event Modal */}
+        {isAddingEvent && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsAddingEvent(false)}>
+            <form onSubmit={handleAddEvent} className={`max-w-md w-full p-6 rounded-3xl border text-xs space-y-4 ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold border-b pb-3 border-gray-100 dark:border-white/5">📅 নতুন ইভেন্ট যোগ করুন</h3>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">শিরোনাম</label>
+                <input required name="title" type="text" placeholder="ইভেন্টের নাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">তারিখ</label>
+                  <input required name="date" type="date" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ক্যাটাগরি</label>
+                  <select name="category" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                    <option value="Milestone">মাইলস্টোন</option>
+                    <option value="Celebration">উৎসব</option>
+                    <option value="Academic">শিক্ষা</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">আইকন (ইমোজি)</label>
+                <input name="icon" type="text" placeholder="🎉" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
+                <textarea required name="description" rows="3" placeholder="বিস্তারিত লিখুন..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">যোগ করুন</button>
+                <button type="button" onClick={() => setIsAddingEvent(false)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">বাতিল</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Add Media Modal */}
+        {isAddingMedia && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsAddingMedia(false)}>
+            <form onSubmit={handleAddMedia} className={`max-w-md w-full p-6 rounded-3xl border text-xs space-y-4 ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold border-b pb-3 border-gray-100 dark:border-white/5">🖼️ গ্যালারিতে ছবি আপলোড</h3>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">শিরোনাম</label>
+                <input required name="title" type="text" placeholder="ছবির নাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">তারিখ</label>
+                  <input required name="date" type="date" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ধরণ</label>
+                  <select name="type" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                    <option value="image">📸 ছবি</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ছবি ফাইল</label>
+                <input required type="file" accept="image/*" onChange={e => handleImageUpload(e, setTempMediaFile)} className={`w-full border rounded-xl p-2 bg-transparent text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#D4AF37]/20 file:text-[#D4AF37]`} />
+                {tempMediaFile && <p className="text-[10px] text-emerald-500 mt-1">✓ প্রস্তুত</p>}
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
+                <textarea name="description" rows="2" placeholder="..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">আপলোড</button>
+                <button type="button" onClick={() => { setIsAddingMedia(false); setTempMediaFile(''); }} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">বাতিল</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Add Assistant Admin Modal */}
+        {isAddingAdmin && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsAddingAdmin(false)}>
+            <form onSubmit={handleAddAdmin} className={`max-w-md w-full p-6 rounded-3xl border text-xs space-y-4 ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold border-b pb-3 border-gray-100 dark:border-white/5">👤 নতুন সহকারী অ্যাডমিন যোগ করুন</h3>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পূর্ণ নাম</label>
+                <input required name="adminName" type="text" placeholder="যেমন: কামাল হোসেন" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ইমেইল ঠিকানা</label>
+                <input required name="adminEmail" type="email" placeholder="example@email.com" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পাসওয়ার্ড</label>
+                <input required name="adminPassword" type="password" placeholder="••••••••" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+              </div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                  সহকারী অ্যাডমিন পেন্ডিং মেম্বার যোগ করতে পারবে এবং কিছু সীমিত অ্যাক্সেস পাবে। সম্পূর্ণ নিয়ন্ত্রণ থাকবে না।
+                </p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">যোগ করুন</button>
+                <button type="button" onClick={() => setIsAddingAdmin(false)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">বাতিল</button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================
+  // RENDER: MEMBER PORTAL (authenticated member)
+  // ==========================================
+  return (
+    <div className={`min-h-screen flex flex-col ${theme.bg} ${theme.text} transition-colors duration-300`}>
+
+      {/* Alert */}
+      {customAlert && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-3 transition-all duration-300 ${customAlert.type === 'error' ? 'bg-red-100 border-red-300 text-red-800' : customAlert.type === 'info' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800'}`}>
+          <CheckCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{customAlert.message}</span>
+        </div>
+      )}
+
+      {/* Navbar */}
+      <nav className="bg-[#1E3F20] text-white border-b border-[#D4AF37] px-4 lg:px-6 py-3 flex flex-col lg:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-start">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-full border border-[#D4AF37] bg-white/10 flex items-center justify-center text-lg">🌳</div>
+            <div>
+              <h1 className="text-sm font-bold">কাসেম ও আয়েশা ঐতিহ্য আর্কাইভ</h1>
+              <p className="text-[9px] text-[#D4AF37] font-semibold tracking-wide">আমাদের শেকড় • আমাদের অহংকার</p>
+            </div>
+          </div>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 rounded-lg hover:bg-white/10">
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Desktop Nav */}
+        <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
+              {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
+              {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
+              {tab === 'directory' && <><Users className="w-3.5 h-3.5" /> সদস্য তালিকা</>}
+              {tab === 'gallery' && <><Image className="w-3.5 h-3.5" /> গ্যালারি</>}
+              {tab === 'timeline' && <><Clock className="w-3.5 h-3.5" /> টাইমলাইন</>}
+            </button>
+          ))}
+        </div>
+
+        {/* User Badge */}
+        <div className="hidden lg:flex items-center gap-3">
+          <button onClick={() => setThemeMode(isDark ? 'light' : 'dark')} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-[#D4AF37]" title="থিম পরিবর্তন">
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <div className="flex items-center gap-2 bg-black/20 p-1.5 pr-3 rounded-2xl border border-white/10">
+            <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shadow">{currentUser?.name?.substring(0, 1)}</div>
+            <div className="text-left text-[10px]">
+              <p className="font-bold leading-tight max-w-[100px] truncate">{currentUser?.name}</p>
+              <p className="text-[#D4AF37] font-semibold">কাসেম পরিবার</p>
+            </div>
+            <button onClick={handleSignOut} className="p-1 rounded-lg hover:bg-red-500/10 text-red-400" title="লগআউট">
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
+          <div className={`absolute right-0 top-0 bottom-0 w-64 ${theme.nav} text-white p-4 pt-16 space-y-1`} onClick={e => e.stopPropagation()}>
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline'].map(tab => (
+              <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
+                {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
+                {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
+                {tab === 'directory' && <><Users className="w-4 h-4" /> সদস্য তালিকা</>}
+                {tab === 'gallery' && <><Image className="w-4 h-4" /> গ্যালারি</>}
+                {tab === 'timeline' && <><Clock className="w-4 h-4" /> টাইমলাইন</>}
+              </button>
+            ))}
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-xs font-bold px-4 py-2 text-[#D4AF37]">{currentUser?.name}</p>
+              <button onClick={() => { setThemeMode(isDark ? 'light' : 'dark'); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2 rounded-xl text-xs font-bold hover:bg-white/10 flex items-center gap-2">
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} থিম পরিবর্তন
+              </button>
+              <button onClick={handleSignOut} className="w-full text-left px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-500/20 text-red-400 flex items-center gap-2">
+                <LogOut className="w-4 h-4" /> লগআউট
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto space-y-6">
+
+        {/* ===== DASHBOARD ===== */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Hero Banner */}
+            <div className="bg-gradient-to-r from-[#1E3F20] to-[#0b140c] text-white p-6 lg:p-8 rounded-3xl relative overflow-hidden border-2 border-[#D4AF37]/40 shadow-xl">
+              <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none text-[8rem] lg:text-[12rem]">🌳</div>
+              <div className="max-w-2xl space-y-3 relative z-10">
+                <span className="bg-[#D4AF37] text-black font-extrabold text-[9px] lg:text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">ডিজিটাল পারিবারিক সংগ্রহশালা</span>
+                <h2 className="text-xl lg:text-3xl font-bold tracking-tight">আপনার শিকড়কে জানুন, ঐতিহ্যকে বাঁচিয়ে রাখুন</h2>
+                <p className="text-xs lg:text-sm text-gray-300 leading-relaxed">শ্রদ্ধেয় আবদুল মোতালেব ও মমতাময়ী আয়েশা খাতুনের পরিবারের প্রতিটি স্মৃতি, ইতিহাস এবং অবদানের এক বিশ্বস্ত আর্কাইভ।</p>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button onClick={() => setActiveTab('tree')} className="bg-[#D4AF37] hover:bg-[#b8952d] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition">
+                    🌲 পারিবারিক গাছ <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setActiveTab('gallery')} className="bg-white/10 hover:bg-white/15 text-white font-bold text-xs px-4 py-2 rounded-xl border border-white/20 flex items-center gap-2 transition">
+                    📸 স্মৃতি গ্যালারি
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+              <StatCard icon={Users} label="মোট সদস্য" value={`${members.length} জন`} color="text-emerald-500" bg="bg-emerald-100 dark:bg-emerald-950/40" theme={theme} />
+              <StatCard icon={Crown} label="পরম শিকড়" value="আবদুল মোতালেব" color="text-[#D4AF37]" bg="bg-amber-100 dark:bg-amber-950/40" theme={theme} isSmall />
+              <StatCard icon={Calendar} label="মাইলস্টোন" value={`${events.length}টি`} color="text-blue-500" bg="bg-blue-100 dark:bg-blue-950/40" theme={theme} />
+              <StatCard icon={Image} label="স্মৃতিচিত্র" value={`${gallery.length}টি`} color="text-purple-500" bg="bg-purple-100 dark:bg-purple-950/40" theme={theme} />
+            </div>
+
+            {/* Split Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+              {/* Timeline Preview */}
+              <div className={`lg:col-span-2 p-5 rounded-2xl border ${theme.card}`}>
+                <div className="flex items-center justify-between mb-4 border-b pb-3 dark:border-white/5">
+                  <h3 className="font-bold text-sm flex items-center gap-2"><Calendar className="w-4 h-4 text-[#D4AF37]" /> পারিবারিক সোনালী ইতিহাস</h3>
+                  <button onClick={() => setActiveTab('timeline')} className="text-xs text-emerald-600 font-bold hover:underline">সকল ঘটনা →</button>
+                </div>
+                <div className="space-y-3">
+                  {events.slice(0, 3).map(ev => (
+                    <div key={ev.id} className="flex gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition border border-transparent hover:border-gray-100 dark:hover:border-white/10">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center text-lg flex-shrink-0">{ev.icon}</div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-bold text-xs">{ev.title}</h4>
+                          <span className="bg-amber-100 dark:bg-amber-950/50 text-[#D4AF37] text-[9px] font-bold px-2 py-0.5 rounded-full">{formatDate(ev.date)}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">{ev.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grandparents Memorial */}
+              <div className={`p-5 rounded-2xl border ${theme.card}`}>
+                <h3 className="font-bold text-sm flex items-center gap-2 mb-4 border-b pb-3 dark:border-white/5">🕊️ চিরস্মরণীয় অভিভাবক</h3>
+                <div className="space-y-3">
+                  {members.filter(m => m.id === 'm_1' || m.id === 'm_2').map(m => (
+                    <div key={m.id} onClick={() => setSelectedMember(m)} className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10 cursor-pointer transition">
+                      <img src={m.avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border-2 border-[#D4AF37]" />
+                      <div className="text-xs flex-1">
+                        <h4 className="font-bold text-amber-800 dark:text-[#D4AF37]">{m.name}</h4>
+                        <p className="text-[10px] text-gray-500 italic truncate">{m.bio}</p>
+                      </div>
+                      <span className="text-[9px] bg-amber-500/20 text-[#D4AF37] px-2 py-0.5 rounded-full font-bold">মরহুম</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== FAMILY TREE ===== */}
+        {activeTab === 'tree' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <div className="border-b pb-4 mb-6 text-center">
+              <h2 className="text-lg font-bold flex items-center justify-center gap-2">🌲 আমাদের পারিবারিক বৃক্ষ</h2>
+              <p className="text-xs text-gray-400 mt-1">দাদা-দাদী থেকে শুরু করে পরিবারের পারস্পরিক সম্পর্কের রূপরেখা।</p>
+            </div>
+            <div className="p-4 lg:p-6 overflow-x-auto min-h-[400px] flex flex-col items-center bg-gray-50 dark:bg-black/10 rounded-2xl">
+              {/* Root */}
+              <div className="text-center">
+                <span className="text-[10px] bg-amber-600 text-white font-bold px-3 py-1 rounded-full">পরম শিকড় (দাদা-দাদী)</span>
+                <div className="flex items-center justify-center gap-4 lg:gap-6 mt-4">
+                  {members.filter(m => m.id === 'm_1' || m.id === 'm_2').map(m => {
+                    const badge = getBadge(m);
+                    return (
+                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
+                        <div className="relative">
+                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-[#D4AF37] shadow-lg" />
+                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
+                        </div>
+                        <p className="font-extrabold text-[11px] mt-2 group-hover:text-amber-500">{m.name}</p>
+                        <span className="text-[9px] text-gray-400">মরহুম</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="w-0.5 h-8 bg-amber-500/50 my-2" />
+              {/* Parents */}
+              <div className="text-center w-full">
+                <span className="text-[10px] bg-[#1E3F20] text-[#D4AF37] font-bold px-3 py-1 rounded-full">পিতা-মাতা প্রজন্ম</span>
+                <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-8 mt-4">
+                  {members.filter(m => m.role === 'Father' || m.role === 'Mother').map(m => {
+                    const badge = getBadge(m);
+                    return (
+                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
+                        <div className="relative">
+                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-emerald-600 shadow-md" />
+                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
+                        </div>
+                        <p className="font-bold text-[11px] mt-2 group-hover:text-emerald-500">{m.name}</p>
+                        <span className="text-[9px] text-gray-400">{m.profession || 'গৃহিণী'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="w-0.5 h-8 bg-emerald-500/50 my-2" />
+              {/* Children */}
+              <div className="text-center w-full">
+                <span className="text-[10px] bg-emerald-700 text-white font-bold px-3 py-1 rounded-full">সন্তান ও ভবিষ্যৎ প্রজন্ম</span>
+                <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-8 mt-4">
+                  {members.filter(m => m.role === 'Child').map(m => {
+                    const badge = getBadge(m);
+                    return (
+                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
+                        <div className="relative">
+                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-blue-500" />
+                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
+                        </div>
+                        <p className="font-bold text-[11px] mt-2 group-hover:text-blue-400">{m.name}</p>
+                        <span className="text-[9px] text-gray-400">{m.profession || 'ছাত্র'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== DIRECTORY ===== */}
+        {activeTab === 'directory' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <div className="mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">📇 পারিবারিক সদস্য তালিকা</h2>
+              <p className="text-xs text-gray-400 mt-1">পরিবারের সকল সদস্যদের খোঁজখবর এক জায়গায়।</p>
+            </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+              <input type="text" placeholder="নাম, পেশা বা জেলা লিখে খুঁজুন..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={`w-full text-xs pl-10 pr-4 py-3 rounded-xl bg-transparent border ${theme.input}`} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMembers.map(m => (
+                <div key={m.id} className={`relative rounded-2xl overflow-hidden border transition-all hover:scale-[1.02] ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-white border-gray-100 shadow-md'}`}>
+                  <div className="h-16 w-full bg-cover bg-center" style={{ backgroundImage: `url(${m.cover})` }}><div className="w-full h-full bg-black/20" /></div>
+                  <div className="p-4 pt-0 -mt-7 flex flex-col items-center text-center">
+                    <img src={m.avatar} alt={m.name} className="w-14 h-14 rounded-full object-cover border-4 border-white dark:border-[#1E3F20] shadow-lg mb-2" />
+                    <h3 className="font-bold text-sm">{m.name}</h3>
+                    <p className="text-[10px] text-[#D4AF37] font-semibold">{m.isDeceased ? 'স্মরণীয় পূর্বপুরুষ' : m.role}</p>
+                    {!m.isDeceased && (
+                      <>
+                        <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-2"><Briefcase className="w-3 h-3" /><span>{m.profession || 'পেশা অনির্ধারিত'}</span></div>
+                        <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-1"><MapPin className="w-3 h-3" /><span>{m.pob || 'চট্টগ্রাম'}</span></div>
+                      </>
+                    )}
+                    <button onClick={() => setSelectedMember(m)} className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 transition">
+                      <Eye className="w-3.5 h-3.5" /> বিস্তারিত
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filteredMembers.length === 0 && <div className="col-span-full text-center py-8 text-gray-400">🔍 কোনো সদস্য খুঁজে পাওয়া যায়নি।</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ===== GALLERY ===== */}
+        {activeTab === 'gallery' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <div className="mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">🖼️ পারিবারিক স্মৃতি গ্যালারি</h2>
+              <p className="text-xs text-gray-400 mt-1">পারিবারিক মিলনমেলা ও সুন্দর মুহূর্তগুলোর সংগ্রহ।</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {gallery.map(item => (
+                <div key={item.id} className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-white border-gray-100 shadow-md'}`}>
+                  <div className="relative aspect-video bg-black/10">
+                    <img src={item.url} alt={item.title} className="w-full h-full object-cover" />
+                    <span className="absolute top-2 left-2 bg-[#1E3F20]/80 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full">📸 ছবি</span>
+                  </div>
+                  <div className="p-4 space-y-1">
+                    <h3 className="font-bold text-xs">{item.title}</h3>
+                    <p className="text-[9px] text-gray-400">{item.date}</p>
+                    <p className="text-[11px] text-gray-500">{item.description}</p>
+                  </div>
+                </div>
+              ))}
+              {gallery.length === 0 && <div className="col-span-full text-center py-8 text-gray-400">🖼️ কোনো ছবি নেই।</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ===== TIMELINE ===== */}
+        {activeTab === 'timeline' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <div className="mb-6">
+              <h2 className="text-lg font-bold flex items-center gap-2">📜 পারিবারিক মাইলস্টোন ও টাইমলাইন</h2>
+              <p className="text-xs text-gray-400 mt-1">পারিবারিক অর্জন, উৎসব এবং সুন্দর মুহূর্তের বিবরণ।</p>
+            </div>
+            <div className="relative border-l-2 border-[#D4AF37]/40 pl-6 ml-4 space-y-8">
+              {events.map(ev => (
+                <div key={ev.id} className="relative">
+                  <span className="absolute -left-[35px] top-1.5 w-4 h-4 rounded-full bg-[#D4AF37] border-4 border-white dark:border-[#1E3F20] shadow" />
+                  <div className={`p-4 lg:p-5 rounded-2xl border ${isDark ? 'bg-black/15 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{ev.icon}</span>
+                        <h3 className="font-bold text-sm">{ev.title}</h3>
+                      </div>
+                      <span className="text-xs bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-xl font-bold">{formatDate(ev.date)}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{ev.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ===== MEMBER VIEW MODAL ===== */}
+      {selectedMember && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedMember(null)}>
+          <div className={`max-w-lg w-full rounded-3xl overflow-hidden border ${theme.card} shadow-2xl`} onClick={e => e.stopPropagation()}>
+            <div className="relative h-32 bg-cover bg-center" style={{ backgroundImage: `url(${selectedMember.cover})` }}>
+              <div className="absolute inset-0 bg-black/30" />
+              <button onClick={() => setSelectedMember(null)} className="absolute top-3 right-3 bg-black/50 hover:bg-black/80 text-white rounded-full p-1.5 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 -mt-12 relative">
+              <img src={selectedMember.avatar} alt={selectedMember.name} className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-[#1E3F20] shadow-xl" />
+              <h3 className="text-lg font-extrabold mt-3">{selectedMember.name}</h3>
+              <span className="inline-block bg-[#D4AF37]/20 text-[#D4AF37] font-bold text-[10px] px-3 py-1 rounded-full mt-1">
+                {selectedMember.isDeceased ? 'মরহুম পূর্বপুরুষ' : selectedMember.role}
+              </span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic leading-relaxed">{selectedMember.bio || 'জীবনী পাওয়া যায়নি।'}</p>
+              {!selectedMember.isDeceased && (
+                <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
+                  <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={formatDate(selectedMember.dob)} />
+                  <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={selectedMember.pob || 'চট্টগ্রাম'} />
+                  <InfoRow icon={<Briefcase className="w-3.5 h-3.5 text-emerald-500" />} label="পেশা" value={selectedMember.profession || '-'} />
+                  <InfoRow icon={<GraduationCap className="w-3.5 h-3.5 text-emerald-500" />} label="শিক্ষা" value={selectedMember.education || '-'} />
+                  <InfoRow icon={<Phone className="w-3.5 h-3.5 text-emerald-500" />} label="মোবাইল" value={selectedMember.phone || 'গোপন'} />
+                  <InfoRow icon={<Map className="w-3.5 h-3.5 text-emerald-500" />} label="ঠিকানা" value={selectedMember.address || '-'} />
+                </div>
+              )}
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-black/20 rounded-xl text-[11px] space-y-1 border">
+                <p>👪 <strong>পিতা:</strong> {members.find(m => m.id === selectedMember.fatherId)?.name || 'অনির্ধারিত'}</p>
+                <p>👩 <strong>মাতা:</strong> {members.find(m => m.id === selectedMember.motherId)?.name || 'অনির্ধারিত'}</p>
+                <p>💍 <strong>সঙ্গী:</strong> {members.find(m => m.id === selectedMember.spouseId)?.name || 'অনির্ধারিত'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
+        <p>🛡️ আবদুল মোতালেব ও আয়েশা খাতুন ঐতিহ্য আর্কাইভ &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
+        <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
+      </footer>
+    </div>
+  );
+}
+
+// ==========================================
+// SMALL COMPONENTS
+// ==========================================
+function StatCard({ icon: Icon, label, value, color, bg, theme, isSmall }) {
+  return (
+    <div className={`p-4 lg:p-5 rounded-2xl border transition-all ${theme.card}`}>
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-[9px] lg:text-[10px] text-gray-400 font-bold uppercase">{label}</p>
+          <h3 className={`${isSmall ? 'text-sm' : 'text-xl lg:text-2xl'} font-black mt-1 ${color}`}>{value}</h3>
+        </div>
+        <span className={`text-lg p-2 ${bg} rounded-xl`}><Icon className={`w-5 h-5 ${color}`} /></span>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <p className="flex items-center gap-1.5">
+      {icon}
+      <span><strong>{label}:</strong> {value}</span>
+    </p>
+  );
+}
