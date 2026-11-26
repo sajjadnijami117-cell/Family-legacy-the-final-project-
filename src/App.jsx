@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
+} from './lib/supabase';
 import {
   UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
   CheckCircle, ArrowRight, Eye, Phone, Briefcase, GraduationCap, Map,
@@ -11,88 +14,11 @@ import {
 // ==========================================
 // CONSTANTS & CONFIG
 // ==========================================
-const SUPER_ADMIN_EMAIL_HASH = "41a25acdbb4cf08444c292ad998cad0e1c1505927bb98baee8f6f2ce6a360239"; // hash of the admin email (lower case), so the address is not public
-// Passwords are never stored in plain text. These are PBKDF2-SHA256 hashes (100k iterations).
-// NOTE: this is still client-side only. Anyone can read this file in the browser, so this slows
-// guessing but is not real security. Use a backend/auth service for production.
-const SUPER_ADMIN_SALT = "e0f4bbae30c70a71602d4bdb5be39543";
-const SUPER_ADMIN_HASH = "cc94bc1ce0273a6add4e5b81f664fd09ba710c5ba0f7abc93a037c2bd6eaacb0";
-const FAMILY_CODE_SALT = "d2b27a68ac44395e72a776c996e752fd";
-const FAMILY_CODE_HASH = "72374c4c6c66ffce5f7c0c32dffe5b42505840e7627b22b42141d6900ee0188d";
+// All family data lives in the Supabase database. Nothing secret is stored in this file:
+// the family code and admin passwords are checked by the server (Supabase Auth).
 const MAX_LOGS = 200;
 const MAX_IMAGE_SIDE = 1280;
-const ADMIN_STORAGE_KEY = "family_admin_list_v4";
-const PENDING_MEMBERS_KEY = "family_pending_members_v4";
-const MEMBERS_KEY = "family_members_list_v4";
-const EVENTS_KEY = "family_events_list_v4";
-const GALLERY_KEY = "family_gallery_v4";
-const LOGS_KEY = "family_system_logs_v4";
-const AUTH_KEY = "family_is_auth_v4";
-const USER_KEY = "family_current_user_v4";
-const ADMIN_SESSION_KEY = "family_admin_session_v4";
-
-const INITIAL_MEMBERS = [
-  {
-    id: 'm_1', name: 'মরহুম আবদুল মোতালেব', role: 'Dada',
-    bio: 'আমাদের পরিবারের শ্রদ্ধেয় আদি পুরুষ ও প্রথম অভিভাবক। তাঁর সততা, কঠোর পরিশ্রম এবং আদর্শের ওপর ভিত্তি করেই আমাদের এই সুন্দর পরিবার গড়ে উঠেছে।',
-    dob: '1932-01-01', pob: 'চট্টগ্রাম, বাংলাদেশ', education: '', profession: '',
-    fatherId: '', motherId: '', spouseId: 'm_2', isDeceased: true,
-    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'm_2', name: 'মরহুমা আয়েশা খাতুন', role: 'Dadi',
-    bio: 'পরিবারের স্নেহময়ী ও পুণ্যময়ী মাতৃরূপ। যাঁর অফুরন্ত দোয়া, মমতা আর আন্তরিকতা আমাদের আজীবন পথপ্রদর্শন করবে।',
-    dob: '1938-05-10', pob: 'চট্টগ্রাম, বাংলাদেশ', education: '', profession: '',
-    fatherId: '', motherId: '', spouseId: 'm_1', isDeceased: true,
-    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-    cover: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'm_3', name: 'তারিকুল ইসলাম', role: 'Father',
-    bio: 'মরহুম আবদুল মোতালেব ও মরহুমা আয়েশা খাতুনের জ্যেষ্ঠ পুত্র। পেশায় ব্যবসায়ী ও সমাজসেবক। পুরো পরিবারের বর্তমান অভিভাবক।',
-    dob: '1965-04-10', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'এম.এ, চট্টগ্রাম বিশ্ববিদ্যালয়',
-    profession: 'ব্যবসায়ী', fatherId: 'm_1', motherId: 'm_2', spouseId: 'm_4',
-    isDeceased: false, phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
-    cover: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'm_4', name: 'সাদিয়া সুলতানা', role: 'Mother',
-    bio: 'তারিকুল ইসলামের সহধর্মিণী ও পরিবারের আদর্শ গৃহিণী। সন্তানদের সুশিক্ষায় তাঁর অবদান অনস্বীকার্য।',
-    dob: '1972-09-15', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'বি.এ', profession: 'গৃহিণী',
-    fatherId: '', motherId: '', spouseId: 'm_3', isDeceased: false,
-    phone: '', address: 'নাসিরাবাদ, চট্টগ্রাম',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
-    cover: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 'm_5', name: 'আসিফ ইমতিয়াজ', role: 'Child',
-    bio: 'তারিকুল ইসলাম ও সাদিয়া সুলতানার জ্যেষ্ঠ পুত্র। পরিবারের নতুন প্রজন্মের প্রতিনিধি ও একজন সফটওয়্যার ইঞ্জিনিয়ার।',
-    dob: '1995-12-25', pob: 'চট্টগ্রাম, বাংলাদেশ', education: 'বিএসসি ইন কম্পিউটার সায়েন্স',
-    profession: 'সফটওয়্যার ইঞ্জিনিয়ার', fatherId: 'm_3', motherId: 'm_4', spouseId: '',
-    isDeceased: false, phone: '', address: 'হালিশহর, চট্টগ্রাম',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    cover: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=800'
-  }
-];
-
-const INITIAL_EVENTS = [
-  { id: 'ev_1', title: 'পারিবারিক ভিটার ভিত্তিপ্রস্তর স্থাপন', date: '1962-03-10', description: 'আমাদের পরম শ্রদ্ধেয় দাদা আবদুল মোতালেব চট্টগ্রামের ঐতিহ্যবাহী নাসিরাবাদে আমাদের নিজ বাড়ির ভিত্তিপ্রস্তর স্থাপন করেন।', category: 'Milestone', icon: '🏡' },
-  { id: 'ev_2', title: 'পারিবারিক মিলনমেলা ও ইফতার মাহফিল', date: '2026-03-20', description: 'পবিত্র রমজান উপলক্ষে চট্টগ্রামের নাসিরাবাদ বাসভবনে সকল সদস্যদের স্বতঃস্ফূর্ত অংশগ্রহণে জমকালো এক ইফতার ও দোয়া মাহফিল অনুষ্ঠিত হয়।', category: 'Celebration', icon: '✨' }
-];
-
-const INITIAL_GALLERY = [
-  { id: 'gal_1', title: 'পারিবারিক মিলনমেলার স্মৃতি', date: '2025-12-25', description: 'শীতের এক মিষ্টি সকালে পরিবারের সকলে মিলে খোশগল্পে মেতে ওঠার মুহূর্ত।', type: 'image', url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&q=80&w=600' },
-  { id: 'gal_2', title: 'আমাদের শৈশবের স্মৃতি বিজড়িত বাড়ি', date: '2024-05-14', description: 'নাসিরাবাদের আমাদের আদি পৈতৃক বাড়ি, যা আমাদের ঐতিহ্যের প্রতীক।', type: 'image', url: 'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?auto=format&fit=crop&q=80&w=600' }
-];
-
-const INITIAL_LOGS = [
-  'সিস্টেম ইনিশিয়ালাইজেশন সফলভাবে সম্পন্ন হয়েছে।',
-  'চট্টগ্রামের পৈতৃক ঐতিহ্য আর্কাইভ ডাটাবেজ সফলভাবে লোড হয়েছে।'
-];
+const USER_KEY = "family_current_user_v4"; // only remembers the display name on this device
 
 // ==========================================
 // UTILITY FUNCTIONS
@@ -105,29 +31,10 @@ const loadStorage = (key, fallback) => {
 };
 
 const saveStorage = (key, data) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-    return true;
-  } catch (err) {
-    // Usually the browser storage quota (about 5 MB) is full because of large images.
-    window.dispatchEvent(new CustomEvent('family-storage-error'));
-    return false;
-  }
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* storage unavailable */ }
 };
 
-const toHex = (buf) => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-const fromHex = (hex) => new Uint8Array(hex.match(/.{2}/g).map(h => parseInt(h, 16)));
-
-// PBKDF2-SHA256 hash of a password with a hex salt.
-const hashSecret = async (secret, saltHex) => {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromHex(saltHex), iterations: 100000 }, key, 256);
-  return toHex(bits);
-};
-
-const newSalt = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
-
-// Shrinks a picked image so it fits in browser storage.
+// Shrinks a picked image and returns it as a JPEG blob ready to upload.
 const compressImage = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(new Error('read failed'));
@@ -140,7 +47,7 @@ const compressImage = (file) => new Promise((resolve, reject) => {
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('encode failed'))), 'image/jpeg', 0.8);
     };
     img.src = reader.result;
   };
@@ -169,18 +76,21 @@ const getBadge = (member) => {
 // ==========================================
 export default function App() {
   // Core data states
-  const [members, setMembers] = useState(() => loadStorage(MEMBERS_KEY, INITIAL_MEMBERS));
-  const [pendingMembers, setPendingMembers] = useState(() => loadStorage(PENDING_MEMBERS_KEY, []));
-  const [events, setEvents] = useState(() => loadStorage(EVENTS_KEY, INITIAL_EVENTS));
-  const [gallery, setGallery] = useState(() => loadStorage(GALLERY_KEY, INITIAL_GALLERY));
-  const [logs, setLogs] = useState(() => loadStorage(LOGS_KEY, INITIAL_LOGS));
-  const [assistantAdmins, setAssistantAdmins] = useState(() => loadStorage(ADMIN_STORAGE_KEY, []));
+  const [members, setMembers] = useState([]);
+  const [pendingMembers, setPendingMembers] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [gallery, setGallery] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [assistantAdmins, setAssistantAdmins] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   // Auth states
   const [authMode, setAuthMode] = useState('member'); // 'member' | 'admin'
-  const [isAuthenticated, setIsAuthenticated] = useState(() => loadStorage(AUTH_KEY, false));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => loadStorage(USER_KEY, null));
-  const [adminSession, setAdminSession] = useState(() => loadStorage(ADMIN_SESSION_KEY, null));
+  const [adminSession, setAdminSession] = useState(null);
 
   // UI states
   const [themeMode, setThemeMode] = useState('light');
@@ -206,23 +116,122 @@ export default function App() {
   const canManageAll = isSuperAdmin;
   const canAddPending = isSuperAdmin || isAssistantAdmin;
 
-  // Persistence
-  useEffect(() => { saveStorage(MEMBERS_KEY, members); }, [members]);
-  useEffect(() => { saveStorage(PENDING_MEMBERS_KEY, pendingMembers); }, [pendingMembers]);
-  useEffect(() => { saveStorage(EVENTS_KEY, events); }, [events]);
-  useEffect(() => { saveStorage(GALLERY_KEY, gallery); }, [gallery]);
-  useEffect(() => { saveStorage(LOGS_KEY, logs); }, [logs]);
-  useEffect(() => { saveStorage(ADMIN_STORAGE_KEY, assistantAdmins); }, [assistantAdmins]);
-  useEffect(() => { saveStorage(AUTH_KEY, isAuthenticated); }, [isAuthenticated]);
-  useEffect(() => { saveStorage(USER_KEY, currentUser); }, [currentUser]);
-  useEffect(() => { saveStorage(ADMIN_SESSION_KEY, adminSession); }, [adminSession]);
+  // ===== DATABASE SYNC =====
+  const snapshots = useRef({ members: {}, pending_members: {}, events: {}, gallery: {} });
+  const queue = useRef(Promise.resolve());
+  const loadingRef = useRef(false);
 
-  // Warn when browser storage is full (large images are the usual cause)
+  const setSnapshot = (table, items) => {
+    snapshots.current[table] = Object.fromEntries(items.map(i => [i.id, JSON.stringify(i)]));
+  };
+
+  const refreshAdmins = async () => {
+    const rows = await rpc('list_admins');
+    setAssistantAdmins(rows.filter(r => r.role === 'assistant').map(r => ({
+      id: r.user_id, name: r.name, email: r.email, createdAt: r.created_at,
+    })));
+  };
+
+  // Reads everything this user is allowed to see.
+  const loadAll = async (role) => {
+    const isAnyAdmin = role === 'super' || role === 'assistant';
+    const [m, e, g] = await Promise.all([
+      selectRows('members', 'select=id,data&order=created_at.asc,id.asc'),
+      selectRows('events', 'select=id,data&order=created_at.desc,id.desc'),
+      selectRows('gallery', 'select=id,data&order=created_at.desc,id.desc'),
+    ]);
+    const memberList = m.map(r => r.data);
+    const eventList = e.map(r => r.data);
+    const galleryList = g.map(r => r.data);
+    let pendingList = [];
+    let logList = [];
+    if (isAnyAdmin) {
+      const [p, l] = await Promise.all([
+        selectRows('pending_members', 'select=id,data&order=created_at.asc,id.asc'),
+        selectRows('activity_logs', `select=message&order=created_at.desc,id.desc&limit=${MAX_LOGS}`),
+      ]);
+      pendingList = p.map(r => r.data);
+      logList = l.map(r => r.message);
+    }
+    setSnapshot('members', memberList);
+    setSnapshot('events', eventList);
+    setSnapshot('gallery', galleryList);
+    setSnapshot('pending_members', pendingList);
+    setMembers(memberList);
+    setEvents(eventList);
+    setGallery(galleryList);
+    setPendingMembers(pendingList);
+    setLogs(logList);
+    if (role === 'super') await refreshAdmins();
+    setDataLoaded(true);
+  };
+
+  const reloadData = async () => {
+    try { await loadAll(adminSession?.role || 'member'); } catch { /* the alert is already shown */ }
+  };
+
+  // Sends only the rows that changed since the last sync to the database.
+  const syncTable = (table, items) => {
+    if (!dataLoaded) return;
+    const snap = snapshots.current[table];
+    const next = {};
+    const changed = [];
+    for (const item of items) {
+      const str = JSON.stringify(item);
+      next[item.id] = str;
+      if (snap[item.id] !== str) changed.push(item);
+    }
+    const removed = Object.keys(snap).filter(id => !(id in next));
+    if (!changed.length && !removed.length) return;
+    snapshots.current[table] = next;
+    queue.current = queue.current.then(async () => {
+      try {
+        for (const item of changed) await upsertRow(table, { id: item.id, data: item });
+        for (const id of removed) await deleteRow(table, id);
+      } catch (err) {
+        triggerAlert('সংরক্ষণ করা যায়নি, তাই সর্বশেষ তথ্য আবার আনা হচ্ছে। (' + (err.message || 'ত্রুটি') + ')', 'error');
+        await reloadData();
+      }
+    });
+  };
+
+  useEffect(() => { syncTable('members', members); }, [members]);
+  useEffect(() => { syncTable('pending_members', pendingMembers); }, [pendingMembers]);
+  useEffect(() => { syncTable('events', events); }, [events]);
+  useEffect(() => { syncTable('gallery', gallery); }, [gallery]);
+  useEffect(() => { saveStorage(USER_KEY, currentUser); }, [currentUser]);
+
+  // Restore a saved sign-in when the page opens.
   useEffect(() => {
-    const onFull = () => triggerAlert('ব্রাউজারের স্টোরেজ পূর্ণ! সর্বশেষ পরিবর্তন সংরক্ষিত হয়নি। কিছু ছবি মুছে আবার চেষ্টা করুন।', 'error');
-    window.addEventListener('family-storage-error', onFull);
-    return () => window.removeEventListener('family-storage-error', onFull);
+    let cancelled = false;
+    (async () => {
+      const session = getSession();
+      if (!session) { setBooting(false); return; }
+      try {
+        const rows = await selectRows('admins', 'select=role,name');
+        if (cancelled) return;
+        if (rows.length) setAdminSession({ email: session.user.email, role: rows[0].role, name: rows[0].name });
+        else if (session.user.email === FAMILY_EMAIL) setIsAuthenticated(true);
+        else await signOut();
+      } catch {
+        await signOut();
+      } finally {
+        if (!cancelled) setBooting(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Load the data once somebody is signed in.
+  useEffect(() => {
+    if (!(isAuthenticated || adminSession) || dataLoaded || loadingRef.current) return;
+    loadingRef.current = true;
+    loadAll(adminSession?.role || 'member')
+      .catch((err) => {
+        triggerAlert('তথ্য আনা যায়নি: ' + (err.message || 'ত্রুটি'), 'error');
+      })
+      .finally(() => { loadingRef.current = false; });
+  }, [isAuthenticated, adminSession, dataLoaded]);
 
   // Alert helper
   const triggerAlert = (message, type = 'success') => {
@@ -232,85 +241,81 @@ export default function App() {
 
   const addLog = (message) => {
     const ts = new Date().toLocaleTimeString('bn-BD') + ' - ' + new Date().toLocaleDateString('bn-BD');
-    setLogs(prev => [`[${ts}] ${message}`, ...prev].slice(0, MAX_LOGS));
+    const line = `[${ts}] ${message}`;
+    setLogs(prev => [line, ...prev].slice(0, MAX_LOGS));
+    insertRow('activity_logs', { message: line.slice(0, 500) }).catch(() => {});
   };
 
   // Image upload handler
   const handleImageUpload = (e, callback) => {
     const file = e.target.files[0];
     if (!file) return;
+    triggerAlert('ছবি আপলোড হচ্ছে...', 'info');
     compressImage(file)
-      .then(callback)
-      .catch(() => triggerAlert('ছবিটি পড়া যায়নি। অন্য ছবি বেছে নিন।', 'error'));
+      .then(uploadPhoto)
+      .then((url) => { callback(url); triggerAlert('ছবি আপলোড হয়েছে।', 'success'); })
+      .catch(() => triggerAlert('ছবি আপলোড করা যায়নি। অন্য ছবি বেছে নিন বা আবার চেষ্টা করুন।', 'error'));
   };
 
   // ===== AUTH HANDLERS =====
+  // Family members sign in with the shared family code. The server checks it.
   const handleMemberLogin = async (e) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const memberId = data.get('memberId');
-    const email = data.get('email');
+    const name = String(data.get('name') || '').trim();
     const familyCode = String(data.get('familyCode') || '').trim().toLowerCase();
-    if (await hashSecret(familyCode, FAMILY_CODE_SALT) !== FAMILY_CODE_HASH) {
-      triggerAlert('পারিবারিক কোড সঠিক নয়!', 'error');
-      return;
-    }
-    const matched = members.find(m => m.id === memberId);
-    if (matched) {
-      const userSession = { id: matched.id, role: matched.role, name: matched.name, email: email || `${matched.id}@family.com` };
-      setCurrentUser(userSession);
+    if (!name) { triggerAlert('আপনার নাম লিখুন।', 'error'); return; }
+    setBusy(true);
+    try {
+      await signIn(FAMILY_EMAIL, familyCode);
+      setCurrentUser({ id: 'guest', role: 'Member', name, email: '' });
       setIsAuthenticated(true);
-      addLog(`সদস্য "${matched.name}" সফলভাবে লগইন করেছেন`);
-      triggerAlert(`স্বাগতম, ${matched.name}! আপনার সেশন সক্রিয় হয়েছে।`, 'success');
-    } else {
-      triggerAlert('নির্বাচিত সদস্য খুঁজে পাওয়া যায়নি!', 'error');
+      addLog(`সদস্য "${name}" সফলভাবে লগইন করেছেন`);
+      triggerAlert(`স্বাগতম, ${name}! আপনার সেশন সক্রিয় হয়েছে।`, 'success');
+    } catch (err) {
+      triggerAlert(err.status === 400 ? 'পারিবারিক কোড সঠিক নয়!' : 'লগইন করা যায়নি, ইন্টারনেট সংযোগ দেখুন।', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
+  // Admins (super and assistant) sign in with their own email and password.
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
     const email = String(data.get('adminEmail') || '').trim();
     const password = String(data.get('adminPassword') || '');
-
-    // Check super admin
-    if (await hashSecret(email.toLowerCase(), SUPER_ADMIN_SALT) === SUPER_ADMIN_EMAIL_HASH && await hashSecret(password, SUPER_ADMIN_SALT) === SUPER_ADMIN_HASH) {
-      const session = { email, role: 'super', name: 'সুপার অ্যাডমিন' };
-      setAdminSession(session);
-      addLog(`সুপার অ্যাডমিন "${email}" লগইন করেছেন`);
-      triggerAlert('সুপার অ্যাডমিন প্যানেলে স্বাগতম!', 'success');
-      return;
+    setBusy(true);
+    try {
+      await signIn(email, password);
+      const rows = await selectRows('admins', 'select=role,name');
+      if (!rows.length) {
+        await signOut();
+        triggerAlert('এই অ্যাকাউন্টটি অ্যাডমিন নয়!', 'error');
+        return;
+      }
+      setAdminSession({ email, role: rows[0].role, name: rows[0].name });
+      addLog(`${rows[0].role === 'super' ? 'সুপার অ্যাডমিন' : 'সহকারী অ্যাডমিন'} "${rows[0].name}" লগইন করেছেন`);
+      triggerAlert(rows[0].role === 'super' ? 'সুপার অ্যাডমিন প্যানেলে স্বাগতম!' : `স্বাগতম, ${rows[0].name}!`, 'success');
+    } catch (err) {
+      triggerAlert(err.status === 400 ? 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়!' : 'লগইন করা যায়নি, ইন্টারনেট সংযোগ দেখুন।', 'error');
+    } finally {
+      setBusy(false);
     }
-
-    // Check assistant admin
-    let assistant = null;
-    for (const a of assistantAdmins) {
-      if (a.email !== email) continue;
-      // Older records stored a plain password; newer ones store salt + hash.
-      const ok = a.hash ? await hashSecret(password, a.salt) === a.hash : a.password === password;
-      if (ok) { assistant = a; break; }
-    }
-    if (assistant) {
-      const session = { email, role: 'assistant', name: assistant.name };
-      setAdminSession(session);
-      addLog(`সহকারী অ্যাডমিন "${assistant.name}" লগইন করেছেন`);
-      triggerAlert(`স্বাগতম, ${assistant.name}!`, 'success');
-      return;
-    }
-
-    triggerAlert('ইমেইল অথবা পাসওয়ার্ড সঠিক নয়!', 'error');
   };
 
-  const handleSignOut = () => {
-    if (isAdmin) {
-      addLog(`অ্যাডমিন "${adminSession?.name || adminSession?.email}" লগআউট করেছেন`);
-      setAdminSession(null);
-    } else {
-      addLog(`সদস্য "${currentUser?.name}" পোর্টাল থেকে বিদায় নিয়েছেন`);
-      setIsAuthenticated(false);
-      setCurrentUser(null);
-    }
-    triggerAlert('আপনি সফলভাবে বিদায় নিয়েছেন।', 'info');
+  const handleSignOut = async () => {
+    addLog(isAdmin
+      ? `অ্যাডমিন "${adminSession?.name || adminSession?.email}" লগআউট করেছেন`
+      : `সদস্য "${currentUser?.name}" পোর্টাল থেকে বিদায় নিয়েছেন`);
+    await signOut();
+    setAdminSession(null);
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setDataLoaded(false);
+    setMembers([]); setPendingMembers([]); setEvents([]); setGallery([]); setLogs([]); setAssistantAdmins([]);
+    snapshots.current = { members: {}, pending_members: {}, events: {}, gallery: {} };
+    triggerAlert('আপনি সফলভাবে বিদায় নিয়েছেন।', 'info');
   };
 
   // ===== MEMBER CRUD =====
@@ -470,27 +475,39 @@ export default function App() {
   const handleAddAdmin = async (e) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const salt = newSalt();
-    const newAdmin = {
-      id: 'admin_' + Date.now(),
-      name: f.get('adminName'),
-      email: String(f.get('adminEmail') || '').trim(),
-      salt,
-      hash: await hashSecret(String(f.get('adminPassword') || ''), salt),
-      createdAt: new Date().toISOString()
-    };
-    setAssistantAdmins(prev => [...prev, newAdmin]);
-    setIsAddingAdmin(false);
-    addLog(`নতুন সহকারী অ্যাডমিন "${newAdmin.name}" যুক্ত করা হয়েছে`);
-    triggerAlert(`"${newAdmin.name}" সহকারী অ্যাডমিন হিসেবে যুক্ত হয়েছে!`, 'success');
+    const name = String(f.get('adminName') || '').trim();
+    setBusy(true);
+    try {
+      await rpc('create_assistant_admin', {
+        p_email: String(f.get('adminEmail') || '').trim(),
+        p_password: String(f.get('adminPassword') || ''),
+        p_name: name,
+      });
+      await refreshAdmins();
+      setIsAddingAdmin(false);
+      addLog(`নতুন সহকারী অ্যাডমিন "${name}" যুক্ত করা হয়েছে`);
+      triggerAlert(`"${name}" সহকারী অ্যাডমিন হিসেবে যুক্ত হয়েছে!`, 'success');
+    } catch (err) {
+      const msg = /password must be/.test(err.message) ? 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।'
+        : /duplicate|already/.test(err.message) ? 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট আছে।'
+        : 'অ্যাডমিন যোগ করা যায়নি: ' + err.message;
+      triggerAlert(msg, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleRemoveAdmin = (adminId) => {
+  const handleRemoveAdmin = async (adminId) => {
     const admin = assistantAdmins.find(a => a.id === adminId);
     if (!window.confirm(`সহকারী অ্যাডমিন "${admin?.name}" কে সরাবেন?`)) return;
-    setAssistantAdmins(prev => prev.filter(a => a.id !== adminId));
-    addLog(`সহকারী অ্যাডমিন "${admin?.name}" সরানো হয়েছে`);
-    triggerAlert('সহকারী অ্যাডমিন সরানো হয়েছে।', 'info');
+    try {
+      await rpc('remove_assistant_admin', { p_user_id: adminId });
+      await refreshAdmins();
+      addLog(`সহকারী অ্যাডমিন "${admin?.name}" সরানো হয়েছে`);
+      triggerAlert('সহকারী অ্যাডমিন সরানো হয়েছে।', 'info');
+    } catch (err) {
+      triggerAlert('সরানো যায়নি: ' + err.message, 'error');
+    }
   };
 
   // Filtered members
@@ -515,6 +532,21 @@ export default function App() {
     gold: 'text-[#D4AF37]',
     goldBg: 'bg-[#D4AF37]',
   };
+
+  // ==========================================
+  // RENDER: LOADING
+  // ==========================================
+  if (booting || ((isAuthenticated || isAdmin) && !dataLoaded)) {
+    return (
+      <div className={`min-h-screen ${theme.bg} ${theme.text} flex items-center justify-center p-4`}>
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-[#D4AF37] border-t-transparent animate-spin" />
+          <p className="font-bold text-sm">লোড হচ্ছে...</p>
+          {customAlert && <p className="text-xs mt-2 text-red-500">{customAlert.message}</p>}
+        </div>
+      </div>
+    );
+  }
 
   // ==========================================
   // RENDER: LOGIN SCREEN
@@ -557,24 +589,15 @@ export default function App() {
             {authMode === 'member' && (
               <form onSubmit={handleMemberLogin} className="space-y-4 text-xs">
                 <div>
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">নিবন্ধিত সদস্য নির্বাচন করুন</label>
-                  <select name="memberId" required className={`w-full border rounded-xl p-3 bg-transparent font-medium ${theme.input}`}>
-                    <option value="">আপনার নাম বেছে নিন</option>
-                    {members.map(m => (
-                      <option key={m.id} value={m.id} className="text-black">{m.name} {m.isDeceased ? '(মরহুম)' : ''}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ইমেইল ঠিকানা</label>
-                  <input required name="email" type="email" placeholder="example@family.com" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                  <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">আপনার নাম</label>
+                  <input required name="name" type="text" autoComplete="name" placeholder="আপনার পুরো নাম লিখুন" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1 flex items-center gap-1"><Lock className="w-3 h-3" /> পারিবারিক কোড</label>
                   <input required name="familyCode" type="password" autoComplete="off" placeholder="পরিবারের গোপন কোড" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                 </div>
-                <button type="submit" className="w-full bg-[#1E3F20] text-white p-3.5 rounded-xl font-bold hover:bg-[#112212] transition-all border border-[#D4AF37] text-sm">
-                  পারিবারিক আর্কাইভে প্রবেশ করুন
+                <button type="submit" disabled={busy} className="w-full bg-[#1E3F20] text-white p-3.5 rounded-xl font-bold hover:bg-[#112212] transition-all border border-[#D4AF37] text-sm disabled:opacity-60">
+                  {busy ? 'যাচাই করা হচ্ছে...' : 'পারিবারিক আর্কাইভে প্রবেশ করুন'}
                 </button>
               </form>
             )}
@@ -1391,7 +1414,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পাসওয়ার্ড</label>
-                <input required name="adminPassword" type="password" placeholder="••••••••" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                <input required name="adminPassword" type="password" minLength={8} placeholder="••••••••" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
               <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                 <p className="text-[11px] text-amber-700 dark:text-amber-300">
