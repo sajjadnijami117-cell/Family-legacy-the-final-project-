@@ -72,6 +72,139 @@ const getBadge = (member) => {
 };
 
 // ==========================================
+// FAMILY TREE (couples -> children -> their couples, any number of generations)
+// ==========================================
+function buildTreeUnits(members) {
+  const byId = new Map(members.map(m => [m.id, m]));
+  const hasParents = (m) => !!(byId.get(m.fatherId) || byId.get(m.motherId));
+  const spouseOf = (m) => {
+    const s = byId.get(m.spouseId);
+    if (s) return s;
+    return members.find(o => o.spouseId === m.id) || null;
+  };
+  // A unit is one person plus their partner. The "main" person is the one who has parents in the tree.
+  const unitOf = (m) => {
+    const sp = spouseOf(m);
+    if (!sp) return { main: m, spouse: null };
+    if (hasParents(m) || !hasParents(sp)) return { main: m, spouse: sp };
+    return { main: sp, spouse: m };
+  };
+  const seen = new Set();
+  const makeUnit = (m, depth) => {
+    const { main, spouse } = unitOf(m);
+    seen.add(main.id);
+    if (spouse) seen.add(spouse.id);
+    const ids = new Set([main.id, spouse?.id].filter(Boolean));
+    const kids = members.filter(c => !seen.has(c.id) && (ids.has(c.fatherId) || ids.has(c.motherId)));
+    const children = [];
+    for (const kid of kids) {
+      if (seen.has(kid.id)) continue;
+      children.push(makeUnit(kid, depth + 1));
+    }
+    return { key: main.id, main, spouse, depth, children };
+  };
+  const roots = [];
+  for (const m of members) {
+    if (seen.has(m.id) || hasParents(m)) continue;
+    const sp = spouseOf(m);
+    if (sp && hasParents(sp)) continue; // married-in partner, shown with their spouse
+    roots.push(makeUnit(m, 0));
+  }
+  const leftover = members.filter(m => !seen.has(m.id));
+  return { roots, leftover };
+}
+
+const countUnitPeople = (u) => 1 + (u.spouse ? 1 : 0) + u.children.reduce((n, c) => n + countUnitPeople(c), 0);
+
+const genLabel = (depth) => ['পরম শিকড়', 'দ্বিতীয় প্রজন্ম', 'তৃতীয় প্রজন্ম', 'চতুর্থ প্রজন্ম', 'পঞ্চম প্রজন্ম', 'ষষ্ঠ প্রজন্ম'][depth] || `${depth + 1}ম প্রজন্ম`;
+
+function PersonChip({ m, onSelect }) {
+  const badge = getBadge(m);
+  return (
+    <button type="button" onClick={() => onSelect(m)} className="flex items-center gap-2 text-left hover:scale-[1.03] transition min-w-0">
+      <span className="relative flex-shrink-0">
+        <img src={m.avatar} alt={m.name} className="w-11 h-11 rounded-full object-cover border-2 border-[#D4AF37] shadow" />
+        <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center font-bold text-[8px] ${badge.color} border border-white`}>{badge.char}</span>
+      </span>
+      <span className="min-w-0">
+        <span className="block font-bold text-[11px] leading-tight break-words">{m.name}</span>
+        <span className="block text-[9px] text-gray-400">{m.isDeceased ? 'মরহুম/মরহুমা' : (m.profession || '')}</span>
+      </span>
+    </button>
+  );
+}
+
+function TreeUnit({ unit, onSelect, collapsed, toggle }) {
+  const isCollapsed = collapsed.has(unit.key);
+  const kids = unit.children;
+  return (
+    <div>
+      <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-600/30 bg-white/70 dark:bg-white/5 px-3 py-2 shadow-sm max-w-full">
+        <PersonChip m={unit.main} onSelect={onSelect} />
+        {unit.spouse && (
+          <>
+            <span className="text-[#D4AF37] text-sm" title="দম্পতি">💍</span>
+            <PersonChip m={unit.spouse} onSelect={onSelect} />
+          </>
+        )}
+        {kids.length > 0 && (
+          <button type="button" onClick={() => toggle(unit.key)} className="ml-1 text-[10px] font-bold px-2 py-1 rounded-full bg-[#1E3F20] text-[#D4AF37]">
+            {isCollapsed ? `▶ সন্তান ${kids.length}` : `▼ সন্তান ${kids.length}`}
+          </button>
+        )}
+      </div>
+      {kids.length > 0 && !isCollapsed && (
+        <div className="ml-4 mt-2 pl-4 border-l-2 border-emerald-500/40 space-y-3">
+          {kids.map(k => (
+            <div key={k.key} className="relative before:absolute before:-left-4 before:top-6 before:w-4 before:h-0.5 before:bg-emerald-500/40">
+              <p className="text-[9px] text-gray-400 mb-1">{genLabel(k.depth)}</p>
+              <TreeUnit unit={k} onSelect={onSelect} collapsed={collapsed} toggle={toggle} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FamilyTree({ members, onSelect }) {
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const { roots, leftover } = buildTreeUnits(members);
+  const toggle = (key) => setCollapsed(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const parentKeys = [];
+  const walk = (u) => { if (u.children.length) parentKeys.push(u.key); u.children.forEach(walk); };
+  roots.forEach(walk);
+  if (members.length === 0) return <p className="text-xs text-gray-400 text-center py-10">এখনো কোনো সদস্য নেই।</p>;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-[11px] text-gray-400">মোট {members.length} জন। সদস্যের উপর চাপ দিলে বিস্তারিত দেখা যাবে।</p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setCollapsed(new Set())} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-emerald-700 text-white">সব খুলুন</button>
+          <button type="button" onClick={() => setCollapsed(new Set(parentKeys))} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-black/20 dark:bg-white/10">সব গুটান</button>
+        </div>
+      </div>
+      {roots.map(r => (
+        <div key={r.key} className="p-3 rounded-2xl bg-gray-50 dark:bg-black/10 overflow-x-auto">
+          <p className="text-[10px] font-bold text-amber-600 mb-2">{genLabel(0)} · এই শাখায় {countUnitPeople(r)} জন</p>
+          <TreeUnit unit={r} onSelect={onSelect} collapsed={collapsed} toggle={toggle} />
+        </div>
+      ))}
+      {leftover.length > 0 && (
+        <div className="p-3 rounded-2xl bg-gray-50 dark:bg-black/10">
+          <p className="text-[10px] font-bold text-gray-500 mb-2">সম্পর্ক অনির্ধারিত</p>
+          <div className="flex flex-wrap gap-3">{leftover.map(m => <PersonChip key={m.id} m={m} onSelect={onSelect} />)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 export default function App() {
@@ -1600,69 +1733,9 @@ export default function App() {
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <div className="border-b pb-4 mb-6 text-center">
               <h2 className="text-lg font-bold flex items-center justify-center gap-2">🌲 আমাদের পারিবারিক বৃক্ষ</h2>
-              <p className="text-xs text-gray-400 mt-1">দাদা-দাদী থেকে শুরু করে পরিবারের পারস্পরিক সম্পর্কের রূপরেখা।</p>
+              <p className="text-xs text-gray-400 mt-1">দম্পতি ও তাঁদের সন্তান, তারপর সন্তানের দম্পতি ও তাঁদের সন্তান, এভাবে প্রজন্মের পর প্রজন্ম।</p>
             </div>
-            <div className="p-4 lg:p-6 overflow-x-auto min-h-[400px] flex flex-col items-center bg-gray-50 dark:bg-black/10 rounded-2xl">
-              {/* Root */}
-              <div className="text-center">
-                <span className="text-[10px] bg-amber-600 text-white font-bold px-3 py-1 rounded-full">পরম শিকড় (দাদা-দাদী)</span>
-                <div className="flex items-center justify-center gap-4 lg:gap-6 mt-4">
-                  {members.filter(m => m.id === 'm_1' || m.id === 'm_2').map(m => {
-                    const badge = getBadge(m);
-                    return (
-                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
-                        <div className="relative">
-                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-[#D4AF37] shadow-lg" />
-                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
-                        </div>
-                        <p className="font-extrabold text-[11px] mt-2 group-hover:text-amber-500">{m.name}</p>
-                        <span className="text-[9px] text-gray-400">মরহুম</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="w-0.5 h-8 bg-amber-500/50 my-2" />
-              {/* Parents */}
-              <div className="text-center w-full">
-                <span className="text-[10px] bg-[#1E3F20] text-[#D4AF37] font-bold px-3 py-1 rounded-full">পিতা-মাতা প্রজন্ম</span>
-                <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-8 mt-4">
-                  {members.filter(m => m.role === 'Father' || m.role === 'Mother').map(m => {
-                    const badge = getBadge(m);
-                    return (
-                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
-                        <div className="relative">
-                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-emerald-600 shadow-md" />
-                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
-                        </div>
-                        <p className="font-bold text-[11px] mt-2 group-hover:text-emerald-500">{m.name}</p>
-                        <span className="text-[9px] text-gray-400">{m.profession || 'গৃহিণী'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="w-0.5 h-8 bg-emerald-500/50 my-2" />
-              {/* Children */}
-              <div className="text-center w-full">
-                <span className="text-[10px] bg-emerald-700 text-white font-bold px-3 py-1 rounded-full">সন্তান ও ভবিষ্যৎ প্রজন্ম</span>
-                <div className="flex flex-wrap items-center justify-center gap-6 lg:gap-8 mt-4">
-                  {members.filter(m => m.role === 'Child').map(m => {
-                    const badge = getBadge(m);
-                    return (
-                      <div key={m.id} onClick={() => setSelectedMember(m)} className="group flex flex-col items-center cursor-pointer hover:scale-105 transition">
-                        <div className="relative">
-                          <img src={m.avatar} alt={m.name} className="w-12 h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 border-blue-500" />
-                          <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${badge.color} border border-white`}>{badge.char}</span>
-                        </div>
-                        <p className="font-bold text-[11px] mt-2 group-hover:text-blue-400">{m.name}</p>
-                        <span className="text-[9px] text-gray-400">{m.profession || 'ছাত্র'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <FamilyTree members={members} onSelect={setSelectedMember} />
           </div>
         )}
 
