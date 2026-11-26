@@ -75,7 +75,7 @@ const getBadge = (member) => {
 // FAMILY TREE (couples -> children -> their couples, any number of generations)
 // ==========================================
 function buildTreeUnits(members) {
-  const byId = new Map(members.map(m => [m.id, m]));
+  const byId = new globalThis.Map(members.map(m => [m.id, m]));
   const hasParents = (m) => !!(byId.get(m.fatherId) || byId.get(m.motherId));
   const spouseOf = (m) => {
     const s = byId.get(m.spouseId);
