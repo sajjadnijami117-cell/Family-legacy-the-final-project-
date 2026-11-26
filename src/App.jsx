@@ -721,7 +721,7 @@ export default function App() {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
-            <div className={`absolute right-0 top-12 bottom-0 w-64 ${theme.nav} text-white p-4 space-y-1 overflow-y-auto`} onClick={e => e.stopPropagation()}>
+            <div className={`fixed right-0 top-12 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
               {[
                 { tab: 'overview', icon: BarChart3, label: 'ওভারভিউ' },
                 { tab: 'members', icon: Users, label: 'সদস্য ব্যবস্থাপনা' },
@@ -1437,7 +1437,7 @@ export default function App() {
   // RENDER: MEMBER PORTAL (authenticated member)
   // ==========================================
   return (
-    <div className={`min-h-screen flex flex-col ${theme.bg} ${theme.text} transition-colors duration-300`}>
+    <div className={`min-h-screen overflow-x-hidden flex flex-col ${theme.bg} ${theme.text} transition-colors duration-300`}>
 
       {/* Alert */}
       {customAlert && (
@@ -1496,7 +1496,7 @@ export default function App() {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
-          <div className={`absolute right-0 top-0 bottom-0 w-64 ${theme.nav} text-white p-4 pt-16 space-y-1`} onClick={e => e.stopPropagation()}>
+          <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
             {['dashboard', 'tree', 'directory', 'gallery', 'timeline'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
