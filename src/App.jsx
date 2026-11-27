@@ -2060,7 +2060,8 @@ export default function App() {
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
         <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
-      </footer>
+      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ২</p>
+        </footer>
     </div>
   );
 }
