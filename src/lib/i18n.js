@@ -3,6 +3,16 @@
 // Fixed screen text is swapped by looking it up in this dictionary.
 
 const EN = {
+  '⏳ টাইম ক্যাপসুল': '⏳ Time capsule',
+  '👁️ তাঁর চোখে দেখুন': '👁️ See through their eyes',
+  '🔔 ফোনে নোটিফিকেশন': '🔔 Phone notifications',
+  '✍️ নতুন চিঠি লিখুন': '✍️ Write a new letter',
+  '💌 খুলে গেছে': '💌 Opened',
+  '🔒 তালা দিয়ে রাখুন': '🔒 Lock it away',
+  'এই ফোনে চালু করুন': 'Turn on for this phone',
+  'চিঠি পড়ুন': 'Read the letter',
+  'সাধারণ গাছ': 'Normal tree',
+  'আমার চোখে': 'Through my eyes',
   'কাসেম ও আয়েশা ঐতিহ্য আর্কাইভ': 'Kasem & Ayesha Heritage Archive',
   'আমাদের শেকড় • আমাদের অহংকার': 'Our roots • Our pride',
   'আবদুল মোতালেব ও আয়েশা খাতুন পরিবার': 'Abdul Mutalib & Ayesha Khatun Family',

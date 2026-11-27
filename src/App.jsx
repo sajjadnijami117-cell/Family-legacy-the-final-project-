@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
 import {
   FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
 } from './lib/supabase';
 import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
 import { makeGender } from './lib/relations';
+import { CapsulePage, CapsuleBanner, PerspectiveContext, PerspectiveBar, usePerspective } from './components/Extras3';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
   UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
@@ -123,15 +124,23 @@ const genLabel = (depth) => ['পরম শিকড়', 'দ্বিতীয
 
 function PersonChip({ m, onSelect }) {
   const badge = getBadge(m);
+  const pv = useContext(PerspectiveContext);
+  const isViewer = !!pv.viewer && pv.viewer.id === m.id;
+  const term = pv.viewer && !isViewer ? pv.term(m) : '';
+  const dim = !!pv.direct && !pv.direct.has(m.id);
   return (
-    <button type="button" onClick={() => onSelect(m)} className="flex items-center gap-2 text-left hover:scale-[1.03] transition min-w-0">
+    <button type="button" onClick={() => onSelect(m)} className={`flex items-center gap-2 text-left hover:scale-[1.03] transition min-w-0 ${dim ? 'opacity-35' : ''} ${isViewer ? 'rounded-full ring-2 ring-[#D4AF37] pr-2' : ''}`}>
       <span className="relative flex-shrink-0">
         <img src={m.avatar} alt={m.name} className="w-11 h-11 rounded-full object-cover border-2 border-[#D4AF37] shadow" />
         <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center font-bold text-[8px] ${badge.color} border border-white`}>{badge.char}</span>
       </span>
       <span className="min-w-0">
         <span className="block font-bold text-[11px] leading-tight break-words">{m.name}</span>
-        <span className="block text-[9px] text-gray-400">{m.isDeceased ? 'মরহুম/মরহুমা' : (m.profession || '')}</span>
+        {pv.viewer ? (
+          <span className="block text-[10px] font-bold text-[#B8860B]">{isViewer ? '★ তিনি নিজে' : term}</span>
+        ) : (
+          <span className="block text-[9px] text-gray-400">{m.isDeceased ? 'মরহুম/মরহুমা' : (m.profession || '')}</span>
+        )}
       </span>
     </button>
   );
@@ -266,7 +275,12 @@ export default function App() {
 
   // UI states
   const [themeMode, setThemeMode] = useState('light');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      return ['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].includes(t) ? t : 'dashboard';
+    } catch { return 'dashboard'; }
+  });
   const [adminTab, setAdminTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [dirStatus, setDirStatus] = useState('all');
@@ -725,6 +739,7 @@ export default function App() {
 
   // Family name shown in the header, hero text and footer comes from the founding couple.
   const rootCouple = useMemo(() => getRootCouple(members), [members]);
+  const perspective = usePerspective(members);
   const storedTitle = (() => { try { return localStorage.getItem('family_title_v1') || ''; } catch { return ''; } })();
   const archiveTitle = rootCouple.names ? `${rootCouple.names} ঐতিহ্য আর্কাইভ` : (dataLoaded ? 'পারিবারিক ঐতিহ্য আর্কাইভ' : (storedTitle || 'পারিবারিক ঐতিহ্য আর্কাইভ'));
   const familyLabel = rootCouple.people[0] ? `${cleanName(rootCouple.people[0].name)} পরিবার` : 'পরিবার';
@@ -1741,7 +1756,7 @@ export default function App() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
-          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'request'].map(tab => (
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
               {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
               {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
@@ -1749,6 +1764,7 @@ export default function App() {
               {tab === 'gallery' && <><Image className="w-3.5 h-3.5" /> গ্যালারি</>}
               {tab === 'timeline' && <><Clock className="w-3.5 h-3.5" /> টাইমলাইন</>}
               {tab === 'memorial' && <>🕯️ স্মরণ</>}
+              {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
               {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
@@ -1776,7 +1792,7 @@ export default function App() {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
           <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
-            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'request'].map(tab => (
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
                 {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
@@ -1784,6 +1800,7 @@ export default function App() {
                 {tab === 'gallery' && <><Image className="w-4 h-4" /> গ্যালারি</>}
                 {tab === 'timeline' && <><Clock className="w-4 h-4" /> টাইমলাইন</>}
                 {tab === 'memorial' && <>🕯️ স্মরণ</>}
+                {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
                 {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
@@ -1806,6 +1823,7 @@ export default function App() {
         {/* ===== DASHBOARD ===== */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            <CapsuleBanner onOpen={() => setActiveTab('capsules')} />
             <Announcements events={events} />
             <UpcomingPanel members={members} onSelect={setSelectedMember} />
             <StatsPanel members={members} />
@@ -1890,9 +1908,14 @@ export default function App() {
               <p className="text-xs text-gray-400 mt-1">দম্পতি ও তাঁদের সন্তান, তারপর সন্তানের দম্পতি ও তাঁদের সন্তান, এভাবে প্রজন্মের পর প্রজন্ম।</p>
             </div>
             <div className="mb-4 print:hidden"><RelationTool members={members} /></div>
-            <TreeErrorBoundary members={members} onSelect={setSelectedMember}>
-              <FamilyTree members={members} onSelect={setSelectedMember} />
-            </TreeErrorBoundary>
+            <div className="mb-4 print:hidden">
+              <PerspectiveBar members={members} viewerId={perspective.viewerId} setViewerId={perspective.setViewerId} directOnly={perspective.directOnly} setDirectOnly={perspective.setDirectOnly} />
+            </div>
+            <PerspectiveContext.Provider value={perspective.value}>
+              <TreeErrorBoundary members={members} onSelect={setSelectedMember}>
+                <FamilyTree members={members} onSelect={setSelectedMember} />
+              </TreeErrorBoundary>
+            </PerspectiveContext.Provider>
           </div>
         )}
 
@@ -1979,6 +2002,12 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'capsules' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <CapsulePage members={members} isAdmin={isAdmin} defaultName={currentUser?.name} />
+          </div>
+        )}
+
         {activeTab === 'request' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <h2 className="text-lg font-bold mb-4">✉️ নতুন সদস্যের তথ্য পাঠান</h2>
@@ -2060,7 +2089,7 @@ export default function App() {
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
         <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
-      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ২</p>
+      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ৩</p>
         </footer>
     </div>
   );
