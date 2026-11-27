@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
 } from './lib/supabase';
+import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
   UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
@@ -485,7 +486,7 @@ export default function App() {
       dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
-      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: false, role: f.get('role') || 'Child',
+      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: f.get('isDeceased') === 'on', deathDate: f.get('deathDate') || '', burialPlace: f.get('burialPlace') || '', role: f.get('role') || 'Child',
       phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
       avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
       cover: tempCover || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800'
@@ -506,7 +507,7 @@ export default function App() {
       dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
-      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: false, role: f.get('role') || 'Child',
+      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: f.get('isDeceased') === 'on', deathDate: f.get('deathDate') || '', burialPlace: f.get('burialPlace') || '', role: f.get('role') || 'Child',
       phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
       requestedBy: adminSession?.name || adminSession?.email,
       requestedAt: new Date().toISOString(),
@@ -522,6 +523,13 @@ export default function App() {
   const handleApprovePending = (pendingId) => {
     const pending = pendingMembers.find(p => p.id === pendingId);
     if (!pending) return;
+    if (pending.kind === 'correction') {
+      setMembers(prev => prev.map(m => (m.id === pending.targetId ? { ...m, ...pending.changes } : m)));
+      setPendingMembers(prev => prev.filter(p => p.id !== pendingId));
+      addLog(`সংশোধনের অনুরোধ "${pending.name}" এপ্রুভ করা হয়েছে`);
+      triggerAlert('তথ্য সংশোধন করা হয়েছে।', 'success');
+      return;
+    }
     const approvedMember = { ...pending, id: pending.id.replace('pending_', 'm_') };
     setMembers(prev => [...prev, approvedMember]);
     setPendingMembers(prev => prev.filter(p => p.id !== pendingId));
@@ -549,6 +557,7 @@ export default function App() {
           address: f.get('address') || '', role: f.get('role') || m.role,
           fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
           spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '',
+          isDeceased: f.get('isDeceased') === 'on', deathDate: f.get('deathDate') || '', burialPlace: f.get('burialPlace') || '',
           avatar: tempAvatar || m.avatar, cover: tempCover || m.cover
         };
       }
@@ -584,7 +593,7 @@ export default function App() {
     const f = new FormData(e.currentTarget);
     const newEvent = {
       id: 'ev_' + Date.now(), title: f.get('title'), date: f.get('date'),
-      description: f.get('description'), category: f.get('category'), icon: f.get('icon') || '📌', memberIds: f.getAll('memberIds')
+      description: f.get('description'), category: f.get('category'), icon: f.get('icon') || '📌', pinned: f.get('pinned') === 'on', memberIds: f.getAll('memberIds')
     };
     setEvents(prev => [newEvent, ...prev]);
     setIsAddingEvent(false);
@@ -1155,6 +1164,17 @@ export default function App() {
                       </select>
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" name="isDeceased"  /> মরহুম / মরহুমা</label>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মৃত্যুর তারিখ</label>
+                      <input name="deathDate" type="date"  className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">কবরের স্থান</label>
+                      <input name="burialPlace" type="text"  className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">লিঙ্গ</label>
@@ -1434,6 +1454,7 @@ export default function App() {
                   {selectedMember.marriageDate && <p>💒 <strong>বিবাহ:</strong> {formatDate(selectedMember.marriageDate)}</p>}
                 </div>
                 <MemberLinks member={selectedMember} gallery={gallery} events={events} members={members} />
+                {!selectedMember.isDeceased && <ContactButtons phone={selectedMember.phone} />}
               </div>
             </div>
           </div>
@@ -1460,7 +1481,18 @@ export default function App() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" name="isDeceased" defaultChecked={!!isEditingMember.isDeceased} /> মরহুম / মরহুমা</label>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মৃত্যুর তারিখ</label>
+                      <input name="deathDate" type="date" defaultValue={isEditingMember.deathDate || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">কবরের স্থান</label>
+                      <input name="burialPlace" type="text" defaultValue={isEditingMember.burialPlace || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">লিঙ্গ</label>
                       <select name="gender" defaultValue={isEditingMember.gender || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
@@ -1574,6 +1606,7 @@ export default function App() {
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
                 <textarea required name="description" rows="3" placeholder="বিস্তারিত লিখুন..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
+              <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" name="pinned" /> হোম পেজে ঘোষণা হিসেবে দেখান</label>
               <MemberMultiSelect members={members} />
               <div className="flex items-center gap-3 pt-2">
                 <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">যোগ করুন</button>
@@ -1687,13 +1720,14 @@ export default function App() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
-          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'request'].map(tab => (
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'request'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
               {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
               {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
               {tab === 'directory' && <><Users className="w-3.5 h-3.5" /> সদস্য তালিকা</>}
               {tab === 'gallery' && <><Image className="w-3.5 h-3.5" /> গ্যালারি</>}
               {tab === 'timeline' && <><Clock className="w-3.5 h-3.5" /> টাইমলাইন</>}
+              {tab === 'memorial' && <>🕯️ স্মরণ</>}
               {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
@@ -1721,13 +1755,14 @@ export default function App() {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
           <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
-            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'request'].map(tab => (
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'request'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
                 {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
                 {tab === 'directory' && <><Users className="w-4 h-4" /> সদস্য তালিকা</>}
                 {tab === 'gallery' && <><Image className="w-4 h-4" /> গ্যালারি</>}
                 {tab === 'timeline' && <><Clock className="w-4 h-4" /> টাইমলাইন</>}
+                {tab === 'memorial' && <>🕯️ স্মরণ</>}
                 {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
@@ -1750,7 +1785,9 @@ export default function App() {
         {/* ===== DASHBOARD ===== */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            <Announcements events={events} />
             <UpcomingPanel members={members} onSelect={setSelectedMember} />
+            <StatsPanel members={members} />
             <div className="flex justify-end"><InstallButton /></div>
             {/* Hero Banner */}
             <div className="bg-gradient-to-r from-[#1E3F20] to-[#0b140c] text-white p-6 lg:p-8 rounded-3xl relative overflow-hidden border-2 border-[#D4AF37]/40 shadow-xl">
@@ -1913,6 +1950,12 @@ export default function App() {
         )}
 
         {/* ===== TIMELINE ===== */}
+        {activeTab === 'memorial' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <MemorialPage members={members} onSelect={setSelectedMember} defaultName={currentUser?.name} />
+          </div>
+        )}
+
         {activeTab === 'request' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <h2 className="text-lg font-bold mb-4">✉️ নতুন সদস্যের তথ্য পাঠান</h2>
@@ -1979,7 +2022,12 @@ export default function App() {
                 <p>👪 <strong>পিতা:</strong> {members.find(m => m.id === selectedMember.fatherId)?.name || 'অনির্ধারিত'}</p>
                 <p>👩 <strong>মাতা:</strong> {members.find(m => m.id === selectedMember.motherId)?.name || 'অনির্ধারিত'}</p>
                 <p>💍 <strong>সঙ্গী:</strong> {members.find(m => m.id === selectedMember.spouseId)?.name || 'অনির্ধারিত'}</p>
+                {selectedMember.marriageDate && <p>💒 <strong>বিবাহ:</strong> {formatDate(selectedMember.marriageDate)}</p>}
+                {selectedMember.isDeceased && selectedMember.burialPlace && <p>⚰️ <strong>কবরের স্থান:</strong> {selectedMember.burialPlace}</p>}
               </div>
+              <MemberLinks member={selectedMember} gallery={gallery} events={events} members={members} />
+              {!selectedMember.isDeceased && <ContactButtons phone={selectedMember.phone} />}
+              {!isAdmin && members.some(m => m.id === selectedMember.id) && <CorrectionForm member={selectedMember} />}
             </div>
           </div>
         </div>
