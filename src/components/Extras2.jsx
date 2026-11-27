@@ -22,31 +22,38 @@ export function LangToggle() {
   );
 }
 
-// ---------- Statistics ----------
+// ---------- Statistics: "tree rings" ----------
+// Each generation is one ring around the centre, like the growth rings of a tree.
 const toBn = (n) => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
 
-function Bars({ rows }) {
-  const max = Math.max(1, ...rows.map(r => r.value));
-  return (
-    <div className="space-y-1.5">
-      {rows.map(r => (
-        <div key={r.label} className="flex items-center gap-2 text-[11px]">
-          <span className="w-28 shrink-0 truncate" title={r.label}>{r.label}</span>
-          <div className="flex-1 h-3 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-600" style={{ width: `${(r.value / max) * 100}%` }} />
-          </div>
-          <span className="w-6 text-right font-bold">{toBn(r.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const top = (list, n = 5) => {
+const top = (list, n = 6) => {
   const counts = {};
   for (const v of list) { const k = String(v || '').trim(); if (k) counts[k] = (counts[k] || 0) + 1; }
   return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n).map(([label, value]) => ({ label, value }));
 };
+
+function TreeRings({ perGen, total }) {
+  const size = 190;
+  const c = size / 2;
+  const rings = perGen.length;
+  const step = rings > 1 ? Math.min(15, (c - 34) / rings) : 15;
+  const maxCount = Math.max(1, ...perGen);
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-44 h-44 shrink-0" role="img" aria-label="প্রজন্ম অনুযায়ী সদস্য">
+      {perGen.map((count, i) => {
+        const r = 30 + (rings - 1 - i) * step + step / 2; // oldest generation in the middle
+        const w = 3 + (count / maxCount) * (step - 5);
+        return (
+          <g key={i}>
+            <circle cx={c} cy={c} r={r} fill="none" stroke="#D4AF37" strokeOpacity={0.25 + 0.75 * ((i + 1) / rings)} strokeWidth={w} strokeDasharray={i % 2 ? '2 3' : undefined} />
+          </g>
+        );
+      })}
+      <circle cx={c} cy={c} r="26" fill="#0b1f0d" stroke="#D4AF37" strokeWidth="1.5" />
+      <text x={c} y={c + 4} textAnchor="middle" fontSize="16" fontWeight="800" fill="#F3E3A0">{toBn(total)}</text>
+    </svg>
+  );
+}
 
 export function StatsPanel({ members }) {
   const gender = makeGender(members);
@@ -62,7 +69,9 @@ export function StatsPanel({ members }) {
     return d;
   };
   const gens = members.length ? Math.max(...members.map(m => depth(m))) + 1 : 0;
+  const perGen = Array.from({ length: gens }, (_, g) => members.filter(m => depth(m) === g).length);
   const alive = members.filter(m => !m.isDeceased);
+  const late = members.length - alive.length;
   const male = members.filter(m => gender(m) === 'male').length;
   const female = members.filter(m => gender(m) === 'female').length;
   const now = new Date();
@@ -75,37 +84,79 @@ export function StatsPanel({ members }) {
   };
   const ages = alive.map(age).filter(a => a !== null);
   const groups = [
-    { label: 'শিশু ও কিশোর (০-১৭)', value: ages.filter(a => a < 18).length },
-    { label: 'তরুণ (১৮-৩৫)', value: ages.filter(a => a >= 18 && a <= 35).length },
-    { label: 'মধ্যবয়সী (৩৬-৫৯)', value: ages.filter(a => a >= 36 && a <= 59).length },
-    { label: 'প্রবীণ (৬০+)', value: ages.filter(a => a >= 60).length },
+    { label: '০-১৭', note: 'শিশু ও কিশোর (০-১৭)', value: ages.filter(a => a < 18).length },
+    { label: '১৮-৩৫', note: 'তরুণ (১৮-৩৫)', value: ages.filter(a => a >= 18 && a <= 35).length },
+    { label: '৩৬-৫৯', note: 'মধ্যবয়সী (৩৬-৫৯)', value: ages.filter(a => a >= 36 && a <= 59).length },
+    { label: '৬০+', note: 'প্রবীণ (৬০+)', value: ages.filter(a => a >= 60).length },
   ];
+  const gmax = Math.max(1, ...groups.map(g => g.value));
   const prof = top(alive.map(m => m.profession));
-  const place = top(alive.map(m => m.pob));
-  const tile = (n, label) => (
-    <div className="p-3 rounded-xl bg-emerald-500/10 text-center">
-      <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">{toBn(n)}</p>
-      <p className="text-[10px] text-gray-500 dark:text-gray-300">{label}</p>
-    </div>
+  const place = top(alive.map(m => m.pob || m.address));
+  const pct = members.length ? Math.round((alive.length / members.length) * 100) : 0;
+
+  const chip = (k, text) => (
+    <span key={k} className="inline-block text-[11px] font-bold px-3 py-1 rounded-full border border-[#D4AF37]/40 bg-white/5 text-[#F3E3A0]">{text}</span>
   );
+
   return (
-    <div className="p-4 rounded-2xl border bg-white/70 dark:bg-white/5 border-gray-200 dark:border-white/10 space-y-4">
-      <h3 className="font-bold text-sm">📊 পরিবারের পরিসংখ্যান</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {tile(members.length, 'মোট সদস্য')}
-        {tile(alive.length, 'জীবিত সদস্য')}
-        {tile(members.length - alive.length, 'মরহুম সদস্য')}
-        {tile(gens, 'প্রজন্ম')}
-        {tile(male, 'পুরুষ')}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">বয়স অনুযায়ী ভাগ ({toBn(ages.length)} জনের তথ্য)</p><Bars rows={groups} /></div>
-        <div className="space-y-4">
-          {prof.length > 0 && <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">পেশা</p><Bars rows={prof} /></div>}
-          {place.length > 0 && <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">এলাকা</p><Bars rows={place} /></div>}
+    <div className="relative overflow-hidden rounded-3xl p-5 text-white bg-gradient-to-br from-[#1E3F20] via-[#163018] to-[#0b1f0d] border border-[#D4AF37]/40 shadow-lg">
+      <div className="pointer-events-none absolute -right-16 -top-16 w-56 h-56 rounded-full border-[14px] border-[#D4AF37]/10" />
+      <div className="pointer-events-none absolute -right-8 -top-8 w-40 h-40 rounded-full border-[8px] border-[#D4AF37]/10" />
+      <p className="text-[10px] tracking-widest text-[#D4AF37] font-bold">বৃক্ষবলয় · পরিবারের পরিসংখ্যান</p>
+      <h3 className="font-bold text-sm mt-1">📊 পরিবারের পরিসংখ্যান</h3>
+
+      <div className="mt-4 flex flex-col sm:flex-row items-center gap-5">
+        <TreeRings perGen={perGen} total={members.length} />
+        <div className="flex-1 w-full space-y-3">
+          <div>
+            <div className="flex justify-between text-[11px] mb-1">
+              <span>জীবিত সদস্য {toBn(alive.length)}</span>
+              <span>মরহুম সদস্য {toBn(late)}</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-[#D4AF37] to-[#F3E3A0]" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {chip('g', `প্রজন্ম ${toBn(gens)}`)}
+            {male > 0 && chip('m', `পুরুষ ${toBn(male)}`)}
+            {female > 0 && chip('f', `নারী ${toBn(female)}`)}
+          </div>
+          {perGen.length > 0 && (
+            <ol className="text-[10px] text-white/70 space-y-0.5">
+              {perGen.map((n, i) => <li key={i}>{toBn(i + 1)}ম বলয় (প্রজন্ম {toBn(i + 1)}): {toBn(n)} জন</li>)}
+            </ol>
+          )}
         </div>
       </div>
-      {female > 0 && <p className="text-[11px] text-gray-400">নারী সদস্য: {toBn(female)} জন</p>}
+
+      {ages.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[10px] font-bold text-[#D4AF37] mb-2">বয়সের ভাগ ({toBn(ages.length)} জনের তথ্য)</p>
+          <div className="flex items-end gap-3 h-24">
+            {groups.map(g => (
+              <div key={g.label} className="flex-1 flex flex-col items-center justify-end h-full" title={g.note}>
+                <span className="text-[10px] font-bold mb-1">{toBn(g.value)}</span>
+                <div className="w-full rounded-t-xl bg-gradient-to-t from-[#2f8f4e] to-[#8ad49f]" style={{ height: `${Math.max(6, (g.value / gmax) * 70)}%` }} />
+                <span className="text-[10px] text-white/70 mt-1">{g.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(prof.length > 0 || place.length > 0) && (
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {prof.length > 0 && (
+            <div><p className="text-[10px] font-bold text-[#D4AF37] mb-2">পেশা</p>
+              <div className="flex flex-wrap gap-1.5">{prof.map(r => chip(r.label, `${r.label} ×${toBn(r.value)}`))}</div></div>
+          )}
+          {place.length > 0 && (
+            <div><p className="text-[10px] font-bold text-[#D4AF37] mb-2">এলাকা</p>
+              <div className="flex flex-wrap gap-1.5">{place.map(r => chip(r.label, `${r.label} ×${toBn(r.value)}`))}</div></div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

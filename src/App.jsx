@@ -3,6 +3,7 @@ import {
   FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
 } from './lib/supabase';
 import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
+import { makeGender } from './lib/relations';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
   UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
@@ -225,6 +226,21 @@ function FamilyTree({ members, onSelect }) {
       )}
     </div>
   );
+}
+
+// The founding couple is whoever sits at the top of the biggest branch of the tree.
+// Their names are used for the site title, so the super admin controls them just by adding members.
+const cleanName = (n) => String(n || '').replace(/^(শ্রদ্ধেয়|মরহুমা|মরহুম|মমতাময়ী)\s+/, '').trim();
+
+function getRootCouple(members) {
+  const { roots } = buildTreeUnits(members);
+  if (!roots.length) return { people: [], names: '' };
+  const size = (u) => 1 + (u.spouse ? 1 : 0) + u.children.reduce((n, c) => n + size(c), 0);
+  const best = roots.reduce((a, b) => (size(b) > size(a) ? b : a), roots[0]);
+  const people = [best.main, best.spouse].filter(Boolean);
+  const gender = makeGender(members);
+  people.sort((a, b) => (gender(a) === 'male' ? -1 : 0) - (gender(b) === 'male' ? -1 : 0));
+  return { people, names: people.map(x => cleanName(x.name)).join(' ও ') };
 }
 
 // ==========================================
@@ -570,10 +586,6 @@ export default function App() {
   };
 
   const handleDeleteMember = (id) => {
-    if (id === 'm_1' || id === 'm_2') {
-      triggerAlert('আদি শিকড় দাদা-দাদীর প্রোফাইল মুছা যাবে না!', 'error');
-      return;
-    }
     const memberToDelete = members.find(m => m.id === id);
     if (!window.confirm(`"${memberToDelete?.name}" কে মুছে ফেলবেন? এটি ফেরানো যাবে না।`)) return;
     // Also clear links from other members so the family tree has no broken references.
@@ -711,6 +723,17 @@ export default function App() {
     return list;
   }, [members, searchQuery, dirStatus, dirSort]);
 
+  // Family name shown in the header, hero text and footer comes from the founding couple.
+  const rootCouple = useMemo(() => getRootCouple(members), [members]);
+  const storedTitle = (() => { try { return localStorage.getItem('family_title_v1') || ''; } catch { return ''; } })();
+  const archiveTitle = rootCouple.names ? `${rootCouple.names} ঐতিহ্য আর্কাইভ` : (dataLoaded ? 'পারিবারিক ঐতিহ্য আর্কাইভ' : (storedTitle || 'পারিবারিক ঐতিহ্য আর্কাইভ'));
+  const familyLabel = rootCouple.people[0] ? `${cleanName(rootCouple.people[0].name)} পরিবার` : 'পরিবার';
+  useEffect(() => {
+    if (!dataLoaded) return;
+    try { localStorage.setItem('family_title_v1', rootCouple.names ? archiveTitle : ''); } catch { /* ignore */ }
+    document.title = archiveTitle;
+  }, [dataLoaded, rootCouple.names, archiveTitle]);
+
   // Theme classes
   const isDark = themeMode === 'dark';
   const theme = {
@@ -756,7 +779,7 @@ export default function App() {
             <div className="w-16 h-16 rounded-full border-2 border-[#D4AF37] mx-auto flex items-center justify-center bg-white/10 mb-3">
               <span className="text-3xl">🌳</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">আবদুল মোতালেব ও আয়েশা খাতুন পরিবার</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{storedTitle ? storedTitle.replace(' ঐতিহ্য আর্কাইভ', ' পরিবার') : 'পারিবারিক ঐতিহ্য আর্কাইভ'}</h1>
             <p className="text-xs text-[#D4AF37] mt-1.5 font-medium tracking-wide">সুরক্ষিত পারিবারিক ঐতিহ্য ও আর্কাইভ পোর্টাল</p>
           </div>
 
@@ -1073,11 +1096,9 @@ export default function App() {
                                 <button onClick={() => setIsEditingMember(m)} className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-white transition" title="এডিট">
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
-                                {!m.isDeceased && (
-                                  <button onClick={() => handleDeleteMember(m.id)} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition" title="ডিলিট">
+                                                                  <button onClick={() => handleDeleteMember(m.id)} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition" title="ডিলিট">
                                     <Trash className="w-3.5 h-3.5" />
                                   </button>
-                                )}
                               </div>
                             </td>
                           )}
@@ -1709,7 +1730,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-full border border-[#D4AF37] bg-white/10 flex items-center justify-center text-lg">🌳</div>
             <div>
-              <h1 className="text-sm font-bold">কাসেম ও আয়েশা ঐতিহ্য আর্কাইভ</h1>
+              <h1 className="text-sm font-bold">{archiveTitle}</h1>
               <p className="text-[9px] text-[#D4AF37] font-semibold tracking-wide">আমাদের শেকড় • আমাদের অহংকার</p>
             </div>
           </div>
@@ -1742,7 +1763,7 @@ export default function App() {
             <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shadow">{currentUser?.name?.substring(0, 1)}</div>
             <div className="text-left text-[10px]">
               <p className="font-bold leading-tight max-w-[100px] truncate">{currentUser?.name}</p>
-              <p className="text-[#D4AF37] font-semibold">কাসেম পরিবার</p>
+              <p className="text-[#D4AF37] font-semibold">{familyLabel}</p>
             </div>
             <button onClick={handleSignOut} className="p-1 rounded-lg hover:bg-red-500/10 text-red-400" title="লগআউট">
               <LogOut className="w-3.5 h-3.5" />
@@ -1795,7 +1816,7 @@ export default function App() {
               <div className="max-w-2xl space-y-3 relative z-10">
                 <span className="bg-[#D4AF37] text-black font-extrabold text-[9px] lg:text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">ডিজিটাল পারিবারিক সংগ্রহশালা</span>
                 <h2 className="text-xl lg:text-3xl font-bold tracking-tight">আপনার শিকড়কে জানুন, ঐতিহ্যকে বাঁচিয়ে রাখুন</h2>
-                <p className="text-xs lg:text-sm text-gray-300 leading-relaxed">শ্রদ্ধেয় আবদুল মোতালেব ও মমতাময়ী আয়েশা খাতুনের পরিবারের প্রতিটি স্মৃতি, ইতিহাস এবং অবদানের এক বিশ্বস্ত আর্কাইভ।</p>
+                <p className="text-xs lg:text-sm text-gray-300 leading-relaxed">{rootCouple.names ? `শ্রদ্ধেয় ${rootCouple.names}-এর` : 'আপনার'} পরিবারের প্রতিটি স্মৃতি, ইতিহাস এবং অবদানের এক বিশ্বস্ত আর্কাইভ।</p>
                 <div className="flex flex-wrap gap-3 pt-2">
                   <button onClick={() => setActiveTab('tree')} className="bg-[#D4AF37] hover:bg-[#b8952d] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition">
                     🌲 পারিবারিক গাছ <ArrowRight className="w-4 h-4" />
@@ -1810,7 +1831,7 @@ export default function App() {
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
               <StatCard icon={Users} label="মোট সদস্য" value={`${members.length} জন`} color="text-emerald-500" bg="bg-emerald-100 dark:bg-emerald-950/40" theme={theme} />
-              <StatCard icon={Crown} label="পরম শিকড়" value="আবদুল মোতালেব" color="text-[#D4AF37]" bg="bg-amber-100 dark:bg-amber-950/40" theme={theme} isSmall />
+              <StatCard icon={Crown} label="পরম শিকড়" value={rootCouple.people[0] ? cleanName(rootCouple.people[0].name) : '—'} color="text-[#D4AF37]" bg="bg-amber-100 dark:bg-amber-950/40" theme={theme} isSmall />
               <StatCard icon={Calendar} label="মাইলস্টোন" value={`${events.length}টি`} color="text-blue-500" bg="bg-blue-100 dark:bg-blue-950/40" theme={theme} />
               <StatCard icon={Image} label="স্মৃতিচিত্র" value={`${gallery.length}টি`} color="text-purple-500" bg="bg-purple-100 dark:bg-purple-950/40" theme={theme} />
             </div>
@@ -1840,10 +1861,11 @@ export default function App() {
               </div>
 
               {/* Grandparents Memorial */}
+              {rootCouple.people.some(m => m.isDeceased) && (
               <div className={`p-5 rounded-2xl border ${theme.card}`}>
                 <h3 className="font-bold text-sm flex items-center gap-2 mb-4 border-b pb-3 dark:border-white/5">🕊️ চিরস্মরণীয় অভিভাবক</h3>
                 <div className="space-y-3">
-                  {members.filter(m => m.id === 'm_1' || m.id === 'm_2').map(m => (
+                  {rootCouple.people.filter(m => m.isDeceased).map(m => (
                     <div key={m.id} onClick={() => setSelectedMember(m)} className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10 cursor-pointer transition">
                       <img src={m.avatar} alt={m.name} className="w-10 h-10 rounded-full object-cover border-2 border-[#D4AF37]" />
                       <div className="text-xs flex-1">
@@ -1855,6 +1877,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           </div>
         )}
@@ -2035,7 +2058,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
-        <p>🛡️ আবদুল মোতালেব ও আয়েশা খাতুন ঐতিহ্য আর্কাইভ &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
+        <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
       </footer>
     </div>
