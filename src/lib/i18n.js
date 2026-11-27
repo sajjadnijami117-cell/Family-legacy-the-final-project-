@@ -179,15 +179,22 @@ const EN = {
 const STORAGE = 'family_lang_v1';
 const SUB_MIN = 6; // shorter keys only match whole text, so they cannot damage longer words
 
-const exact = new Map(Object.entries(EN));
-const subs = Object.keys(EN).filter(k => k.length >= SUB_MIN).sort((a, b) => b.length - a.length);
+// Bengali letters can be stored in more than one way (for example "ো" as one character or as "ে"+"া"),
+// so both the dictionary and the screen text are put into one form before comparing.
+const norm = (s) => s.normalize('NFC').replace(/\u09C7\u09BE/g, '\u09CB').replace(/\u09C7\u09D7/g, '\u09CC');
+
+const DICT = {};
+for (const [k, v] of Object.entries(EN)) DICT[norm(k)] = v;
+const exact = new Map(Object.entries(DICT));
+const subs = Object.keys(DICT).filter(k => k.length >= SUB_MIN).sort((a, b) => b.length - a.length);
 
 const translate = (text) => {
-  const trimmed = text.trim();
+  const t = norm(text);
+  const trimmed = t.trim();
   if (!trimmed) return text;
-  if (exact.has(trimmed)) return text.replace(trimmed, exact.get(trimmed));
-  let out = text;
-  for (const k of subs) if (out.includes(k)) out = out.split(k).join(EN[k]);
+  if (exact.has(trimmed)) return t.replace(trimmed, exact.get(trimmed));
+  let out = t;
+  for (const k of subs) if (out.includes(k)) out = out.split(k).join(DICT[k]);
   return out;
 };
 
