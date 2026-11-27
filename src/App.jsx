@@ -4,6 +4,7 @@ import {
 } from './lib/supabase';
 import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
 import { makeGender } from './lib/relations';
+import { NewsletterPage } from './components/Extras4';
 import { CapsulePage, CapsuleBanner, PerspectiveContext, PerspectiveBar, usePerspective } from './components/Extras3';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
@@ -278,7 +279,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const t = new URLSearchParams(window.location.search).get('tab');
-      return ['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].includes(t) ? t : 'dashboard';
+      return ['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].includes(t) ? t : 'dashboard';
     } catch { return 'dashboard'; }
   });
   const [adminTab, setAdminTab] = useState('overview');
@@ -1756,7 +1757,7 @@ export default function App() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
-          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].map(tab => (
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
               {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
               {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
@@ -1765,6 +1766,7 @@ export default function App() {
               {tab === 'timeline' && <><Clock className="w-3.5 h-3.5" /> টাইমলাইন</>}
               {tab === 'memorial' && <>🕯️ স্মরণ</>}
               {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
+              {tab === 'newsletter' && <>📰 পত্রিকা</>}
               {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
@@ -1792,7 +1794,7 @@ export default function App() {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
           <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
-            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'request'].map(tab => (
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
                 {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
@@ -1801,6 +1803,7 @@ export default function App() {
                 {tab === 'timeline' && <><Clock className="w-4 h-4" /> টাইমলাইন</>}
                 {tab === 'memorial' && <>🕯️ স্মরণ</>}
                 {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
+                {tab === 'newsletter' && <>📰 পত্রিকা</>}
                 {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
@@ -2008,6 +2011,12 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'newsletter' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <NewsletterPage members={members} events={events} gallery={gallery} isSuperAdmin={isSuperAdmin} title={archiveTitle} familyLabel={familyLabel} />
+          </div>
+        )}
+
         {activeTab === 'request' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <h2 className="text-lg font-bold mb-4">✉️ নতুন সদস্যের তথ্য পাঠান</h2>
@@ -2089,7 +2098,7 @@ export default function App() {
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
         <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
-      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ৩</p>
+      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ৪</p>
         </footer>
     </div>
   );
