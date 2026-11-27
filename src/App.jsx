@@ -40,7 +40,7 @@ const compressImage = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(new Error('read failed'));
   reader.onload = () => {
-    const img = new Image();
+    const img = new window.Image(); // "Image" is also the name of an icon imported above
     img.onerror = () => reject(new Error('decode failed'));
     img.onload = () => {
       const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
