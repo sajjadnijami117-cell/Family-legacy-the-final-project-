@@ -6,7 +6,6 @@ const EN = {
   '📰 পত্রিকা': '📰 Newsletter',
   '📰 পারিবারিক পত্রিকা': '📰 Family newsletter',
   '💬 হোয়াটসঅ্যাপে পাঠান': '💬 Send on WhatsApp',
-  '🖨️ PDF / প্রিন্ট': '🖨️ PDF / Print',
   '⏳ টাইম ক্যাপসুল': '⏳ Time capsule',
   '👁️ তাঁর চোখে দেখুন': '👁️ See through their eyes',
   '🔔 ফোনে নোটিফিকেশন': '🔔 Phone notifications',
