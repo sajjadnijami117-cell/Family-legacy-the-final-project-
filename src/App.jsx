@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FAMILY_EMAIL, getSession, signIn, signOut, selectRows, upsertRow, insertRow, deleteRow, rpc, uploadPhoto,
 } from './lib/supabase';
+import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
   UserPlus, LogOut, Search, Sun, Moon, XCircle, Plus, Trash, Edit,
   CheckCircle, ArrowRight, Eye, Phone, Briefcase, GraduationCap, Map,
@@ -200,12 +201,13 @@ function FamilyTree({ members, onSelect }) {
   roots.forEach(walk);
   if (members.length === 0) return <p className="text-xs text-gray-400 text-center py-10">এখনো কোনো সদস্য নেই।</p>;
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+    <div className="space-y-4 print-area">
+      <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
         <p className="text-[11px] text-gray-400">মোট {members.length} জন। সদস্যের উপর চাপ দিলে বিস্তারিত দেখা যাবে।</p>
         <div className="flex gap-2">
           <button type="button" onClick={() => setCollapsed(new Set())} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-emerald-700 text-white">সব খুলুন</button>
           <button type="button" onClick={() => setCollapsed(new Set(parentKeys))} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-black/20 dark:bg-white/10">সব গুটান</button>
+          <button type="button" onClick={() => { setCollapsed(new Set()); setTimeout(() => window.print(), 400); }} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-[#D4AF37] text-black">🖨️ PDF / প্রিন্ট</button>
         </div>
       </div>
       {roots.map(r => (
@@ -250,6 +252,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [adminTab, setAdminTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dirStatus, setDirStatus] = useState('all');
+  const [dirSort, setDirSort] = useState('none');
   const [selectedMember, setSelectedMember] = useState(null);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingMedia, setIsAddingMedia] = useState(false);
@@ -481,7 +485,7 @@ export default function App() {
       dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
-      spouseId: f.get('spouseId') || '', isDeceased: false, role: f.get('role') || 'Child',
+      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: false, role: f.get('role') || 'Child',
       phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
       avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
       cover: tempCover || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800'
@@ -502,7 +506,7 @@ export default function App() {
       dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
-      spouseId: f.get('spouseId') || '', isDeceased: false, role: f.get('role') || 'Child',
+      spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: false, role: f.get('role') || 'Child',
       phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
       requestedBy: adminSession?.name || adminSession?.email,
       requestedAt: new Date().toISOString(),
@@ -544,7 +548,7 @@ export default function App() {
           profession: f.get('profession') || '', phone: f.get('phone') || '',
           address: f.get('address') || '', role: f.get('role') || m.role,
           fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
-          spouseId: f.get('spouseId') || '',
+          spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '',
           avatar: tempAvatar || m.avatar, cover: tempCover || m.cover
         };
       }
@@ -580,7 +584,7 @@ export default function App() {
     const f = new FormData(e.currentTarget);
     const newEvent = {
       id: 'ev_' + Date.now(), title: f.get('title'), date: f.get('date'),
-      description: f.get('description'), category: f.get('category'), icon: f.get('icon') || '📌'
+      description: f.get('description'), category: f.get('category'), icon: f.get('icon') || '📌', memberIds: f.getAll('memberIds')
     };
     setEvents(prev => [newEvent, ...prev]);
     setIsAddingEvent(false);
@@ -607,7 +611,7 @@ export default function App() {
     const newMedia = {
       id: 'gal_' + Date.now(), title: f.get('title') || 'নতুন পারিবারিক ছবি',
       date: f.get('date') || new Date().toISOString().split('T')[0],
-      description: f.get('description') || '', type: f.get('type') || 'image', url: tempMediaFile
+      description: f.get('description') || '', type: f.get('type') || 'image', url: tempMediaFile, memberIds: f.getAll('memberIds')
     };
     setGallery(prev => [newMedia, ...prev]);
     setIsAddingMedia(false);
@@ -663,14 +667,40 @@ export default function App() {
     }
   };
 
+  // Merge imported data (backup file) into the lists; the sync effects send it to the database.
+  const handleImport = ({ members: im, events: ie, gallery: ig }) => {
+    const merge = (prev, incoming) => {
+      const byId = {};
+      const order = [];
+      for (const x of prev) { byId[x.id] = x; order.push(x.id); }
+      for (const x of incoming) {
+        if (!(x.id in byId)) order.push(x.id);
+        byId[x.id] = { ...(byId[x.id] || {}), ...x };
+      }
+      return order.map(id => byId[id]);
+    };
+    setMembers(prev => merge(prev, im));
+    if (ie.length) setEvents(prev => merge(prev, ie));
+    if (ig.length) setGallery(prev => merge(prev, ig));
+    addLog(`ইমপোর্ট: ${im.length} জন সদস্য, ${ie.length} ঘটনা, ${ig.length} ছবি (by ${adminSession?.name || 'Admin'})`);
+    triggerAlert('ইমপোর্ট সম্পন্ন হয়েছে।', 'success');
+  };
+
   // Filtered members
   const filteredMembers = useMemo(() => {
-    return members.filter(m => {
-      return m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (m.profession && m.profession.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (m.pob && m.pob.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = searchQuery.toLowerCase();
+    const list = members.filter(m => {
+      const text = m.name.toLowerCase().includes(q) ||
+        (m.profession && m.profession.toLowerCase().includes(q)) ||
+        (m.pob && m.pob.toLowerCase().includes(q)) ||
+        (m.address && m.address.toLowerCase().includes(q));
+      const status = dirStatus === 'all' || (dirStatus === 'alive' ? !m.isDeceased : !!m.isDeceased);
+      return text && status;
     });
-  }, [members, searchQuery]);
+    if (dirSort === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'bn'));
+    else if (dirSort === 'age') list.sort((a, b) => String(a.dob || '').localeCompare(String(b.dob || '')));
+    return list;
+  }, [members, searchQuery, dirStatus, dirSort]);
 
   // Theme classes
   const isDark = themeMode === 'dark';
@@ -882,6 +912,7 @@ export default function App() {
                 ...(canAddPending ? [{ tab: 'addPending', icon: UserPlus, label: 'নতুন সদস্য যোগ করুন' }] : []),
                 { tab: 'events', icon: Calendar, label: 'টাইমলাইন / ইভেন্ট' },
                 { tab: 'gallery', icon: Image, label: 'গ্যালারি ব্যবস্থাপনা' },
+                { tab: 'backup', icon: Upload, label: 'ব্যাকআপ / ইমপোর্ট' },
                 { tab: 'logs', icon: Activity, label: 'সিস্টেম লগ' },
                 ...(isSuperAdmin ? [{ tab: 'admins', icon: Shield, label: 'অ্যাডমিন ব্যবস্থাপনা' }] : []),
               ].map(item => (
@@ -913,6 +944,7 @@ export default function App() {
                 {adminTab === 'addPending' && '➕ নতুন সদস্য যোগ করুন'}
                 {adminTab === 'events' && '📅 টাইমলাইন / ইভেন্ট ব্যবস্থাপনা'}
                 {adminTab === 'gallery' && '🖼️ গ্যালারি ব্যবস্থাপনা'}
+                {adminTab === 'backup' && '💾 ব্যাকআপ / ইমপোর্ট'}
                 {adminTab === 'logs' && '📋 সিস্টেম লগ'}
                 {adminTab === 'admins' && '🛡️ অ্যাডমিন ব্যবস্থাপনা'}
               </h1>
@@ -1123,6 +1155,20 @@ export default function App() {
                       </select>
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">লিঙ্গ</label>
+                      <select name="gender"  className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                        <option value="">বেছে নিন</option>
+                        <option value="male">ছেলে / পুরুষ</option>
+                        <option value="female">মেয়ে / নারী</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবাহের তারিখ</label>
+                      <input name="marriageDate" type="date"  className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
                     <textarea name="bio" rows="2" placeholder="সংক্ষিপ্ত জীবনী..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
@@ -1272,6 +1318,11 @@ export default function App() {
             </div>
           )}
 
+          {/* ===== ADMIN TAB: BACKUP ===== */}
+          {adminTab === 'backup' && (
+            <BackupPanel members={members} pendingMembers={pendingMembers} events={events} gallery={gallery} isSuperAdmin={isSuperAdmin} onImport={handleImport} />
+          )}
+
           {/* ===== ADMIN TAB: LOGS ===== */}
           {adminTab === 'logs' && (
             <div className="space-y-4">
@@ -1289,6 +1340,7 @@ export default function App() {
           {/* ===== ADMIN TAB: ADMIN MANAGEMENT ===== */}
           {adminTab === 'admins' && isSuperAdmin && (
             <div className="space-y-4">
+              <FamilyCodeForm />
               {/* Super Admin Card */}
               <div className={`p-6 rounded-2xl border ${theme.card}`}>
                 <h3 className="font-bold text-sm flex items-center gap-2 mb-4"><Crown className="w-4 h-4 text-[#D4AF37]" /> সুপার অ্যাডমিন</h3>
@@ -1379,7 +1431,9 @@ export default function App() {
                   <p>👪 <strong>পিতা:</strong> {members.find(m => m.id === selectedMember.fatherId)?.name || 'অনির্ধারিত'}</p>
                   <p>👩 <strong>মাতা:</strong> {members.find(m => m.id === selectedMember.motherId)?.name || 'অনির্ধারিত'}</p>
                   <p>💍 <strong>সঙ্গী:</strong> {members.find(m => m.id === selectedMember.spouseId)?.name || 'অনির্ধারিত'}</p>
+                  {selectedMember.marriageDate && <p>💒 <strong>বিবাহ:</strong> {formatDate(selectedMember.marriageDate)}</p>}
                 </div>
+                <MemberLinks member={selectedMember} gallery={gallery} events={events} members={members} />
               </div>
             </div>
           </div>
@@ -1406,7 +1460,21 @@ export default function App() {
                   </select>
                 </div>
               </div>
-              <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">লিঙ্গ</label>
+                      <select name="gender" defaultValue={isEditingMember.gender || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                        <option value="">বেছে নিন</option>
+                        <option value="male">ছেলে / পুরুষ</option>
+                        <option value="female">মেয়ে / নারী</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবাহের তারিখ</label>
+                      <input name="marriageDate" type="date" defaultValue={isEditingMember.marriageDate || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                    </div>
+                  </div>
+                  <div>
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
                 <textarea name="bio" rows="3" defaultValue={isEditingMember.bio} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
@@ -1506,6 +1574,7 @@ export default function App() {
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
                 <textarea required name="description" rows="3" placeholder="বিস্তারিত লিখুন..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
+              <MemberMultiSelect members={members} />
               <div className="flex items-center gap-3 pt-2">
                 <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">যোগ করুন</button>
                 <button type="button" onClick={() => setIsAddingEvent(false)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">বাতিল</button>
@@ -1544,6 +1613,7 @@ export default function App() {
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
                 <textarea name="description" rows="2" placeholder="..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
+              <MemberMultiSelect members={members} label="ছবিতে কারা আছেন" />
               <div className="flex items-center gap-3 pt-2">
                 <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">আপলোড</button>
                 <button type="button" onClick={() => { setIsAddingMedia(false); setTempMediaFile(''); }} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 p-3 rounded-xl hover:bg-gray-200 transition">বাতিল</button>
@@ -1617,13 +1687,14 @@ export default function App() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
-          {['dashboard', 'tree', 'directory', 'gallery', 'timeline'].map(tab => (
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'request'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
               {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
               {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
               {tab === 'directory' && <><Users className="w-3.5 h-3.5" /> সদস্য তালিকা</>}
               {tab === 'gallery' && <><Image className="w-3.5 h-3.5" /> গ্যালারি</>}
               {tab === 'timeline' && <><Clock className="w-3.5 h-3.5" /> টাইমলাইন</>}
+              {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
         </div>
@@ -1650,13 +1721,14 @@ export default function App() {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
           <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
-            {['dashboard', 'tree', 'directory', 'gallery', 'timeline'].map(tab => (
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'request'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
                 {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
                 {tab === 'directory' && <><Users className="w-4 h-4" /> সদস্য তালিকা</>}
                 {tab === 'gallery' && <><Image className="w-4 h-4" /> গ্যালারি</>}
                 {tab === 'timeline' && <><Clock className="w-4 h-4" /> টাইমলাইন</>}
+                {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
             <div className="pt-4 border-t border-white/10">
@@ -1678,6 +1750,8 @@ export default function App() {
         {/* ===== DASHBOARD ===== */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
+            <UpcomingPanel members={members} onSelect={setSelectedMember} />
+            <div className="flex justify-end"><InstallButton /></div>
             {/* Hero Banner */}
             <div className="bg-gradient-to-r from-[#1E3F20] to-[#0b140c] text-white p-6 lg:p-8 rounded-3xl relative overflow-hidden border-2 border-[#D4AF37]/40 shadow-xl">
               <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none text-[8rem] lg:text-[12rem]">🌳</div>
@@ -1755,6 +1829,7 @@ export default function App() {
               <h2 className="text-lg font-bold flex items-center justify-center gap-2">🌲 আমাদের পারিবারিক বৃক্ষ</h2>
               <p className="text-xs text-gray-400 mt-1">দম্পতি ও তাঁদের সন্তান, তারপর সন্তানের দম্পতি ও তাঁদের সন্তান, এভাবে প্রজন্মের পর প্রজন্ম।</p>
             </div>
+            <div className="mb-4 print:hidden"><RelationTool members={members} /></div>
             <TreeErrorBoundary members={members} onSelect={setSelectedMember}>
               <FamilyTree members={members} onSelect={setSelectedMember} />
             </TreeErrorBoundary>
@@ -1771,6 +1846,19 @@ export default function App() {
             <div className="relative mb-4">
               <Search className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
               <input type="text" placeholder="নাম, পেশা বা জেলা লিখে খুঁজুন..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className={`w-full text-xs pl-10 pr-4 py-3 rounded-xl bg-transparent border ${theme.input}`} />
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              <select value={dirStatus} onChange={e => setDirStatus(e.target.value)} className={`text-xs border rounded-xl p-2 bg-transparent ${theme.input}`}>
+                <option value="all">সবাই</option>
+                <option value="alive">জীবিত</option>
+                <option value="deceased">মরহুম</option>
+              </select>
+              <select value={dirSort} onChange={e => setDirSort(e.target.value)} className={`text-xs border rounded-xl p-2 bg-transparent ${theme.input}`}>
+                <option value="none">সাজানো: ডিফল্ট</option>
+                <option value="name">নাম অনুযায়ী</option>
+                <option value="age">বড় থেকে ছোট (বয়স)</option>
+              </select>
+              <span className="text-[11px] text-gray-400 self-center">{filteredMembers.length} জন</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredMembers.map(m => (
@@ -1815,6 +1903,7 @@ export default function App() {
                     <h3 className="font-bold text-xs">{item.title}</h3>
                     <p className="text-[9px] text-gray-400">{item.date}</p>
                     <p className="text-[11px] text-gray-500">{item.description}</p>
+                     <TaggedMembers ids={item.memberIds} members={members} onSelect={setSelectedMember} />
                   </div>
                 </div>
               ))}
@@ -1824,6 +1913,13 @@ export default function App() {
         )}
 
         {/* ===== TIMELINE ===== */}
+        {activeTab === 'request' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <h2 className="text-lg font-bold mb-4">✉️ নতুন সদস্যের তথ্য পাঠান</h2>
+            <RequestForm members={members} />
+          </div>
+        )}
+
         {activeTab === 'timeline' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <div className="mb-6">
@@ -1843,6 +1939,7 @@ export default function App() {
                       <span className="text-xs bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-xl font-bold">{formatDate(ev.date)}</span>
                     </div>
                     <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{ev.description}</p>
+                     <TaggedMembers ids={ev.memberIds} members={members} onSelect={setSelectedMember} />
                   </div>
                 </div>
               ))}
