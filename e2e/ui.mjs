@@ -13,7 +13,7 @@ await p.waitForSelector('text=বৃক্ষবলয়', { timeout: 15000 });
 const go = async (tab, marker) => { await p.goto(`http://localhost:4173/?tab=${tab}`, { waitUntil: 'networkidle' }); await p.waitForSelector(`text=${marker}`, { timeout: 12000 }); };
 
 // biography
-await go('story', 'জীবনী');
+await p.goto('http://localhost:4173/?tab=story', { waitUntil: 'networkidle' }); await p.waitForSelector('input[aria-label="নাম খুঁজুন"]', { timeout: 12000 });
 const box = p.locator('input[aria-label="নাম খুঁজুন"]');
 ok('search box exists', await box.count() === 1);
 await box.fill('আ');
