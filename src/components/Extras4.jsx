@@ -24,12 +24,6 @@ function monthChoices() {
 
 const labelOf = (key) => { const [y, m] = key.split('-').map(Number); return `${MONTHS[m - 1]} ${toBn(y)}`; };
 
-// The member id carries the moment it was created: m_<milliseconds>.
-const joinedMonth = (m) => {
-  const hit = /^m_(\d{13})$/.exec(m.id || '');
-  return hit ? new Date(Number(hit[1])).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' }).slice(0, 7) : '';
-};
-
 export function buildIssue(key, { members, events, gallery }) {
   const [y, mm] = key.split('-').map(Number);
   const byId = new Map(members.map(m => [m.id, m]));
@@ -62,7 +56,6 @@ export function buildIssue(key, { members, events, gallery }) {
     .map(m => ({ name: m.name, day: parts(m.deathDate).d, years: y - parts(m.deathDate).y }))
     .sort((a, b) => a.day - b.day);
 
-  const joined = members.filter(m => joinedMonth(m) === key);
   const monthEvents = events.filter(e => monthKeyOf(e.date) === key).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const photos = gallery.filter(g => g.type !== 'video' && monthKeyOf(g.date) === key && g.url).slice(0, 6);
   const history = events
@@ -71,9 +64,7 @@ export function buildIssue(key, { members, events, gallery }) {
     .slice(0, 6);
 
   return {
-    birthdays, anniversaries, remembrance, joined, monthEvents, photos, history,
-    total: members.length,
-    living: members.filter(m => !m.isDeceased).length,
+    birthdays, anniversaries, remembrance, monthEvents, photos, history,
   };
 }
 
@@ -122,14 +113,13 @@ export function NewsletterPage({ members, events, gallery, isSuperAdmin, title, 
     if (issue.birthdays.length) bits.push(`🎂 জন্মদিন ${toBn(issue.birthdays.length)}টি`);
     if (issue.anniversaries.length) bits.push(`💍 বিবাহবার্ষিকী ${toBn(issue.anniversaries.length)}টি`);
     if (issue.remembrance.length) bits.push(`🕯️ স্মরণ ${toBn(issue.remembrance.length)}জন`);
-    if (issue.joined.length) bits.push(`🌱 নতুন সদস্য ${toBn(issue.joined.length)}জন`);
     const url = `${window.location.origin}${window.location.pathname}?tab=newsletter`;
     return `📰 ${title} — ${labelOf(key)} সংখ্যা\n${bits.join(' · ')}\n\nপড়তে সাইটে ঢুকুন:\n${url}`;
   };
   const sendWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(shareText())}`, '_blank', 'noopener');
 
   const empty = !issue.birthdays.length && !issue.anniversaries.length && !issue.remembrance.length
-    && !issue.joined.length && !issue.monthEvents.length && !issue.photos.length;
+    && !issue.monthEvents.length && !issue.photos.length;
 
   return (
     <div className="space-y-4">
@@ -192,11 +182,6 @@ export function NewsletterPage({ members, events, gallery, isSuperAdmin, title, 
             <p className="text-[12px] text-[#5b4a1a] mt-2">আল্লাহ তাঁদের জান্নাতবাসী করুন। আমিন।</p>
           </Section>
         )}
-        {issue.joined.length > 0 && (
-          <Section icon="🌱" title="নতুন সদস্য">
-            <p className="text-[13px] break-words">{issue.joined.map(m => m.name).join(', ')}</p>
-          </Section>
-        )}
         {issue.monthEvents.length > 0 && (
           <Section icon="📌" title="ঘটনা ও ঘোষণা">
             <ul className="space-y-2">
@@ -234,8 +219,7 @@ export function NewsletterPage({ members, events, gallery, isSuperAdmin, title, 
         )}
 
         <footer className="pt-3 mt-3 border-t border-[#D4AF37]/50 text-center text-[12px] text-[#5b4a1a]">
-          {familyLabel} · মোট {toBn(issue.total)} জন সদস্য, তার মধ্যে জীবিত {toBn(issue.living)} জন
-          {issue.joined.length > 0 && ` · এ মাসে নতুন ${toBn(issue.joined.length)} জন`}
+          {familyLabel}
         </footer>
       </article>
     </div>

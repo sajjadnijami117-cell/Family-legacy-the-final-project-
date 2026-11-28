@@ -79,4 +79,5 @@
   .print-area, .print-area * { visibility: visible !important; }
   .print-area { position: absolute; left: 0; top: 0; width: 100%; }
   .print-area .overflow-x-auto { overflow: visible !important; }
+  .print-area, .print-area * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

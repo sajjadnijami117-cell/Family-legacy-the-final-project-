@@ -3,6 +3,14 @@
 // Fixed screen text is swapped by looking it up in this dictionary.
 
 const EN = {
+  '🌙 ঈদের ফিতা': '🌙 Eid photo strip',
+  '🌙 ঈদের ছবির ফিতা': '🌙 Eid photo strip',
+  '📖 বংশের গল্প': '📖 Family story',
+  '📖 আমার বংশের গল্প': '📖 My family story',
+  '🎨 শাখা অনুযায়ী রং': '🎨 Colour by branch',
+  'পরের পাতা →': 'Next page →',
+  '← আগের পাতা': '← Previous page',
+  '🔊 পড়ে শোনাও': '🔊 Read aloud',
   '📰 পত্রিকা': '📰 Newsletter',
   '📰 পারিবারিক পত্রিকা': '📰 Family newsletter',
   '💬 হোয়াটসঅ্যাপে পাঠান': '💬 Send on WhatsApp',

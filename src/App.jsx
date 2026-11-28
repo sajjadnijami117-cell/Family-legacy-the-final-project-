@@ -5,6 +5,7 @@ import {
 import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
 import { makeGender } from './lib/relations';
 import { NewsletterPage } from './components/Extras4';
+import { EidStrip, ChildStory } from './components/Extras5';
 import { CapsulePage, CapsuleBanner, PerspectiveContext, PerspectiveBar, usePerspective } from './components/Extras3';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
@@ -126,13 +127,16 @@ const genLabel = (depth) => ['পরম শিকড়', 'দ্বিতীয
 function PersonChip({ m, onSelect }) {
   const badge = getBadge(m);
   const pv = useContext(PerspectiveContext);
+  const bc = useContext(BranchContext);
+  const branch = bc.colorOf ? bc.colorOf.get(m.id) : null;
+  const branchDim = !!bc.focus && (!branch || branch.key !== bc.focus);
   const isViewer = !!pv.viewer && pv.viewer.id === m.id;
   const term = pv.viewer && !isViewer ? pv.term(m) : '';
   const dim = !!pv.direct && !pv.direct.has(m.id);
   return (
-    <button type="button" onClick={() => onSelect(m)} className={`flex items-center gap-2 text-left hover:scale-[1.03] transition min-w-0 ${dim ? 'opacity-35' : ''} ${isViewer ? 'rounded-full ring-2 ring-[#D4AF37] pr-2' : ''}`}>
+    <button type="button" onClick={() => onSelect(m)} className={`flex items-center gap-2 text-left hover:scale-[1.03] transition min-w-0 ${dim || branchDim ? 'opacity-30' : ''} ${isViewer ? 'rounded-full ring-2 ring-[#D4AF37] pr-2' : ''}`}>
       <span className="relative flex-shrink-0">
-        <img src={m.avatar} alt={m.name} className="w-11 h-11 rounded-full object-cover border-2 border-[#D4AF37] shadow" />
+        <img src={m.avatar} alt={m.name} style={branch ? { borderColor: branch.color } : undefined} className="w-11 h-11 rounded-full object-cover border-[3px] border-[#D4AF37] shadow" />
         <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center font-bold text-[8px] ${badge.color} border border-white`}>{badge.char}</span>
       </span>
       <span className="min-w-0">
@@ -150,9 +154,11 @@ function PersonChip({ m, onSelect }) {
 function TreeUnit({ unit, onSelect, collapsed, toggle }) {
   const isCollapsed = collapsed.has(unit.key);
   const kids = unit.children;
+  const bc = useContext(BranchContext);
+  const own = bc.colorOf ? bc.colorOf.get(unit.main.id) : null;
   return (
     <div>
-      <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-600/30 bg-white/70 dark:bg-white/5 px-3 py-2 shadow-sm max-w-full">
+      <div style={own ? { borderColor: own.color, backgroundColor: `${own.color}14` } : undefined} className={`inline-flex flex-wrap items-center gap-2 rounded-2xl border ${own ? 'border-2' : 'border-emerald-600/30'} bg-white/70 dark:bg-white/5 px-3 py-2 shadow-sm max-w-full`}>
         <PersonChip m={unit.main} onSelect={onSelect} />
         {unit.spouse && (
           <>
@@ -180,6 +186,10 @@ function TreeUnit({ unit, onSelect, collapsed, toggle }) {
   );
 }
 
+// Every child of the founding couple starts a branch; that whole line of descendants shares one colour.
+const BRANCH_COLORS = ['#2E7D32', '#C2185B', '#1565C0', '#EF6C00', '#6A1B9A', '#00838F', '#AD1457', '#558B2F', '#4527A0', '#BF360C'];
+const BranchContext = React.createContext({ colorOf: null, focus: '' });
+
 class TreeErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -202,7 +212,27 @@ class TreeErrorBoundary extends React.Component {
 
 function FamilyTree({ members, onSelect }) {
   const [collapsed, setCollapsed] = useState(() => new Set());
-  const { roots, leftover } = buildTreeUnits(members);
+  const [colorOn, setColorOn] = useState(true);
+  const [focus, setFocus] = useState('');
+  const { roots, leftover } = useMemo(() => buildTreeUnits(members), [members]);
+  const branches = useMemo(() => {
+    const colorOf = new globalThis.Map();
+    const list = [];
+    let i = 0;
+    roots.forEach(r => r.children.forEach(c => {
+      const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
+      i += 1;
+      let count = 0;
+      const walk = (u) => {
+        [u.main, u.spouse].filter(Boolean).forEach(x => { colorOf.set(x.id, { color, key: c.key }); count += 1; });
+        u.children.forEach(walk);
+      };
+      walk(c);
+      list.push({ key: c.key, color, name: c.main.name, count });
+    }));
+    return { colorOf, list };
+  }, [roots]);
+  const branchValue = useMemo(() => ({ colorOf: colorOn ? branches.colorOf : null, focus: colorOn ? focus : '' }), [colorOn, focus, branches]);
   const toggle = (key) => setCollapsed(prev => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -222,6 +252,35 @@ function FamilyTree({ members, onSelect }) {
           <button type="button" onClick={() => { setCollapsed(new Set()); setTimeout(() => window.print(), 400); }} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-[#D4AF37] text-black">🖨️ PDF / প্রিন্ট</button>
         </div>
       </div>
+      {branches.list.length > 0 && (
+        <div className="p-3 rounded-2xl border border-gray-200 dark:border-white/10 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-[11px] font-bold">🎨 শাখা অনুযায়ী রং</p>
+            <label className="flex items-center gap-1 text-[10px] font-bold print:hidden">
+              <input type="checkbox" checked={colorOn} onChange={e => { setColorOn(e.target.checked); setFocus(''); }} /> রং দেখান
+            </label>
+          </div>
+          {colorOn && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {branches.list.map(b => (
+                  <button
+                    key={b.key} type="button"
+                    onClick={() => setFocus(f => (f === b.key ? '' : b.key))}
+                    style={{ borderColor: b.color, backgroundColor: focus === b.key ? b.color : `${b.color}1A`, color: focus === b.key ? '#fff' : undefined }}
+                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full border-2"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color }} />
+                    {cleanName(b.name)}-এর শাখা · {b.count} জন
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 print:hidden">কোনো শাখার উপর চাপ দিলে শুধু সেই শাখা উজ্জ্বল থাকবে। আবার চাপলে সব ফিরবে।</p>
+            </>
+          )}
+        </div>
+      )}
+      <BranchContext.Provider value={branchValue}>
       {roots.map(r => (
         <div key={r.key} className="p-3 rounded-2xl bg-gray-50 dark:bg-black/10 overflow-x-auto">
           <p className="text-[10px] font-bold text-amber-600 mb-2">{genLabel(0)} · এই শাখায় {countUnitPeople(r)} জন</p>
@@ -234,6 +293,7 @@ function FamilyTree({ members, onSelect }) {
           <div className="flex flex-wrap gap-3">{leftover.map(m => <PersonChip key={m.id} m={m} onSelect={onSelect} />)}</div>
         </div>
       )}
+      </BranchContext.Provider>
     </div>
   );
 }
@@ -279,7 +339,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const t = new URLSearchParams(window.location.search).get('tab');
-      return ['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].includes(t) ? t : 'dashboard';
+      return ['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'eid', 'story', 'request'].includes(t) ? t : 'dashboard';
     } catch { return 'dashboard'; }
   });
   const [adminTab, setAdminTab] = useState('overview');
@@ -647,7 +707,7 @@ export default function App() {
     const newMedia = {
       id: 'gal_' + Date.now(), title: f.get('title') || 'নতুন পারিবারিক ছবি',
       date: f.get('date') || new Date().toISOString().split('T')[0],
-      description: f.get('description') || '', type: f.get('type') || 'image', url: tempMediaFile, memberIds: f.getAll('memberIds')
+      description: f.get('description') || '', type: f.get('type') || 'image', url: tempMediaFile, eid: f.get('eid') || '', memberIds: f.getAll('memberIds')
     };
     setGallery(prev => [newMedia, ...prev]);
     setIsAddingMedia(false);
@@ -1683,6 +1743,14 @@ export default function App() {
                 <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">বিবরণ</label>
                 <textarea name="description" rows="2" placeholder="..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
               </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">ঈদের ছবি? (ঈদের ফিতায় যাবে)</label>
+                <select name="eid" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`}>
+                  <option value="">না</option>
+                  <option value="fitr">🌙 ঈদুল ফিতর</option>
+                  <option value="adha">🐑 ঈদুল আযহা</option>
+                </select>
+              </div>
               <MemberMultiSelect members={members} label="ছবিতে কারা আছেন" />
               <div className="flex items-center gap-3 pt-2">
                 <button type="submit" className="flex-1 bg-[#D4AF37] text-black font-extrabold p-3 rounded-xl hover:bg-[#b09029] transition">আপলোড</button>
@@ -1757,7 +1825,7 @@ export default function App() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex flex-wrap items-center gap-1 bg-black/25 p-1 rounded-xl">
-          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].map(tab => (
+          {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'eid', 'story', 'request'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black shadow' : 'hover:bg-white/5'}`}>
               {tab === 'dashboard' && <><Home className="w-3.5 h-3.5" /> হোম</>}
               {tab === 'tree' && <><TreeDeciduous className="w-3.5 h-3.5" /> পারিবারিক গাছ</>}
@@ -1767,6 +1835,8 @@ export default function App() {
               {tab === 'memorial' && <>🕯️ স্মরণ</>}
               {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
               {tab === 'newsletter' && <>📰 পত্রিকা</>}
+              {tab === 'eid' && <>🌙 ঈদের ফিতা</>}
+              {tab === 'story' && <>📖 বংশের গল্প</>}
               {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
@@ -1794,7 +1864,7 @@ export default function App() {
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
           <div className={`fixed right-0 top-0 bottom-0 z-50 w-64 max-w-[80vw] ${theme.nav} text-white p-4 pt-16 space-y-1 overflow-y-auto shadow-2xl`} onClick={e => e.stopPropagation()}>
-            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'request'].map(tab => (
+            {['dashboard', 'tree', 'directory', 'gallery', 'timeline', 'memorial', 'capsules', 'newsletter', 'eid', 'story', 'request'].map(tab => (
               <button key={tab} onClick={() => { setActiveTab(tab); setMobileMenuOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeTab === tab ? 'bg-[#D4AF37] text-black' : 'hover:bg-white/10'}`}>
                 {tab === 'dashboard' && <><Home className="w-4 h-4" /> হোম ড্যাশবোর্ড</>}
                 {tab === 'tree' && <><TreeDeciduous className="w-4 h-4" /> পারিবারিক গাছ</>}
@@ -1804,6 +1874,8 @@ export default function App() {
                 {tab === 'memorial' && <>🕯️ স্মরণ</>}
                 {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
                 {tab === 'newsletter' && <>📰 পত্রিকা</>}
+                {tab === 'eid' && <>🌙 ঈদের ফিতা</>}
+                {tab === 'story' && <>📖 বংশের গল্প</>}
                 {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
@@ -1983,7 +2055,7 @@ export default function App() {
                 <div key={item.id} className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#1d3d1f] border-white/5' : 'bg-white border-gray-100 shadow-md'}`}>
                   <div className="relative aspect-video bg-black/10">
                     <img src={item.url} alt={item.title} className="w-full h-full object-cover" />
-                    <span className="absolute top-2 left-2 bg-[#1E3F20]/80 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full">📸 ছবি</span>
+                    <span className="absolute top-2 left-2 bg-[#1E3F20]/80 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-0.5 rounded-full">📸 ছবি{item.eid ? ' · 🌙 ঈদ' : ''}</span>
                   </div>
                   <div className="p-4 space-y-1">
                     <h3 className="font-bold text-xs">{item.title}</h3>
@@ -2014,6 +2086,18 @@ export default function App() {
         {activeTab === 'newsletter' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
             <NewsletterPage members={members} events={events} gallery={gallery} isSuperAdmin={isSuperAdmin} title={archiveTitle} familyLabel={familyLabel} />
+          </div>
+        )}
+
+        {activeTab === 'eid' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <EidStrip gallery={gallery} members={members} setGallery={setGallery} isAdmin={isAdmin} />
+          </div>
+        )}
+
+        {activeTab === 'story' && (
+          <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
+            <ChildStory members={members} />
           </div>
         )}
 
@@ -2098,7 +2182,7 @@ export default function App() {
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
         <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
-      <p className="opacity-60 font-normal">সংস্করণ ২৭ নভেম্বর · ৪</p>
+      <p className="opacity-60 font-normal">সংস্করণ ২৮ নভেম্বর · ৫</p>
         </footer>
     </div>
   );
