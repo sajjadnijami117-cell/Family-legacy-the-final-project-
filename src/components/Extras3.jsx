@@ -14,6 +14,7 @@ const dayNumber = (iso) => {
 };
 const daysUntil = (iso) => dayNumber(iso) - dayNumber(todayDhaka());
 const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+import { knownDob } from '@/lib/placeholders';
 const birthdayDate = (dob, years) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob || '')) return null;
   const [y, m, d] = dob.split('-').map(Number);
@@ -177,7 +178,7 @@ function CapsuleForm({ members, defaultAuthor, onDone, onCancel }) {
   const [err, setErr] = useState('');
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
   const target = members.find(m => m.id === f.memberId);
-  const birthday = f.kind === 'birthday' && target ? birthdayDate(target.dob, f.years) : null;
+  const birthday = f.kind === 'birthday' && target ? birthdayDate(knownDob(target), f.years) : null;
   const opens = f.kind === 'date' ? f.openOn : birthday;
   const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' });
 

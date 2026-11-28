@@ -191,7 +191,7 @@ export function CorrectionForm({ member }) {
     const form = e.currentTarget;
     const f = new FormData(form);
     const p = { targetId: member.id, requestedBy: f.get('requestedBy') || '' };
-    for (const k of ['phone', 'profession', 'education', 'address', 'pob', 'bio', 'dob', 'marriageDate']) p[k] = f.get(k) || '';
+    for (const k of ['phone', 'profession', 'education', 'address', 'pob', 'bio', 'dob', 'marriageDate', 'personalLife', 'achievements', 'values', 'contributions', 'legacy', 'deathDate', 'burialPlace']) p[k] = f.get(k) || '';
     setBusy(true); setMsg('');
     try {
       await rpc('submit_correction_request', { p });
@@ -212,7 +212,12 @@ export function CorrectionForm({ member }) {
         {field('pob', 'জন্মস্থান / জেলা')}{field('dob', 'জন্ম তারিখ', 'date')}{field('marriageDate', 'বিবাহের তারিখ', 'date')}
         {field('requestedBy', 'আপনার নাম (অনুরোধকারী)')}
       </div>
-      <textarea name="bio" rows="2" placeholder="জীবনী (নতুন)" className={inputCls} />
+      <textarea name="bio" rows="2" placeholder="জীবনকথা (নতুন)" className={inputCls} />
+      <textarea name="personalLife" rows="2" placeholder="ব্যক্তিগত জীবন" className={inputCls} />
+      <textarea name="achievements" rows="2" placeholder="অর্জন" className={inputCls} />
+      <textarea name="values" rows="2" placeholder="ব্যক্তিত্ব ও মূল্যবোধ" className={inputCls} />
+      <textarea name="contributions" rows="2" placeholder="অবদান" className={inputCls} />
+      <textarea name="legacy" rows="2" placeholder="রেখে যাওয়া স্মৃতি" className={inputCls} />
       <div className="flex gap-2">
         <button disabled={busy} className="flex-1 bg-emerald-600 disabled:opacity-60 text-white font-bold text-xs py-2.5 rounded-xl">{busy ? 'পাঠানো হচ্ছে...' : 'সংশোধনের অনুরোধ পাঠান'}</button>
         <button type="button" onClick={() => { setOpen(false); setMsg(''); }} className="px-4 text-xs font-bold rounded-xl bg-black/10 dark:bg-white/10">বাতিল</button>

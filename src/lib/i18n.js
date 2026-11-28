@@ -5,6 +5,7 @@
 const EN = {
   '🌙 ঈদের ফিতা': '🌙 Eid photo strip',
   '🌙 ঈদের ছবির ফিতা': '🌙 Eid photo strip',
+  '📖 জীবনী': '📖 Biography',
   '📖 বংশের গল্প': '📖 Family story',
   '📖 আমার বংশের গল্প': '📖 My family story',
   '🎨 শাখা অনুযায়ী রং': '🎨 Colour by branch',
