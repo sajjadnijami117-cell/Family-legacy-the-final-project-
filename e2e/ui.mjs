@@ -51,14 +51,16 @@ await go('story', 'আমার বংশের গল্প');
 const sel = p.locator('select').first();
 const opts = await sel.locator('option').evaluateAll(os => os.map(o => ({ v: o.value, t: o.textContent })).filter(o => o.v));
 console.log('story options', opts.length);
+const bn2n = (x) => Number(String(x).replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d)));
 let best = null;
-for (const o of opts.slice(-12).reverse()) {
+for (const o of opts) {
   await sel.selectOption(o.v);
-  await p.waitForTimeout(150);
-  const counter = (await p.innerText('body')).match(/(\d+|[০-৯]+)\/([০-৯]+)/);
-  if (counter) { best = { o, total: counter[2] }; if (!/^[০-৩]$/.test(counter[2])) break; }
+  const counter = (await p.innerText('body')).match(/([০-৯]+)\/([০-৯]+)/);
+  const total = counter ? bn2n(counter[2]) : 0;
+  if (!best || total > best.total) best = { o, total };
 }
 console.log('chosen', JSON.stringify(best));
+await sel.selectOption(best.o.v);
 t = await p.innerText('body');
 ok('story starts with the child name', /তোমার নাম/.test(t));
 let pages = 1, sawGrand = false, sawAncestors = false;
