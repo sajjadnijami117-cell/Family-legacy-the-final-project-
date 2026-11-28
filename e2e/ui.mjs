@@ -39,7 +39,7 @@ for (let k = 0; k < Math.min(rc, 6); k++) {
 console.log('pages walked', walked);
 ok('no placeholder/child-style text', !sawFake);
 ok('read-aloud button kept (or unsupported)', true);
-t = await p.innerText('body');
+let t = await p.innerText('body');
 console.log('SAMPLE:', t.replace(/\n+/g, ' | ').slice(0, 400));
 console.log('LOGS:\n' + logs.join('\n'));
 ok('no page errors', logs.length === 0);
