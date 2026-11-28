@@ -1,0 +1,15 @@
+name: UI check
+on:
+  push:
+    branches: [ui-check]
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm i --no-save playwright@1.49.1 && npx playwright install --with-deps chromium
+      - run: (npx vite preview --port 4173 &) ; sleep 4; node e2e/ui.mjs
