@@ -5,7 +5,9 @@ import {
 import { StatsPanel, ContactButtons, CorrectionForm, Announcements, MemorialPage } from './components/Extras2';
 import { makeGender } from './lib/relations';
 import { NewsletterPage } from './components/Extras4';
-import { EidStrip, ChildStory } from './components/Extras5';
+import { EidStrip } from './components/Extras5';
+import { LifeBook, BioFields, BIO_KEYS } from './components/Extras6';
+import { knownDob, knownBio, knownPob } from './lib/placeholders';
 import { CapsulePage, CapsuleBanner, PerspectiveContext, PerspectiveBar, usePerspective } from './components/Extras3';
 import { UpcomingPanel, RelationTool, MemberMultiSelect, TaggedMembers, MemberLinks, RequestForm, BackupPanel, FamilyCodeForm, InstallButton } from './components/Extras';
 import {
@@ -573,12 +575,12 @@ export default function App() {
     const f = new FormData(e.currentTarget);
     const newId = 'm_' + Date.now();
     const newMember = {
-      id: newId, name: f.get('name'), bio: f.get('bio') || 'পরিবারের এক আদরের সদস্য।',
-      dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
+      id: newId, name: f.get('name'), ...Object.fromEntries(BIO_KEYS.map(k => [k, f.get(k) || ''])),
+      dob: f.get('dob') || '', pob: f.get('pob') || '',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
       spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: f.get('isDeceased') === 'on', deathDate: f.get('deathDate') || '', burialPlace: f.get('burialPlace') || '', role: f.get('role') || 'Child',
-      phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
+      phone: f.get('phone') || '', address: f.get('address') || '',
       avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
       cover: tempCover || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800'
     };
@@ -594,12 +596,12 @@ export default function App() {
     const f = new FormData(e.currentTarget);
     const newId = 'pending_' + Date.now();
     const pending = {
-      id: newId, name: f.get('name'), bio: f.get('bio') || 'পরিবারের এক আদরের সদস্য।',
-      dob: f.get('dob') || '1995-01-01', pob: f.get('pob') || 'চট্টগ্রাম',
+      id: newId, name: f.get('name'), ...Object.fromEntries(BIO_KEYS.map(k => [k, f.get(k) || ''])),
+      dob: f.get('dob') || '', pob: f.get('pob') || '',
       education: f.get('education') || '', profession: f.get('profession') || '',
       fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
       spouseId: f.get('spouseId') || '', gender: f.get('gender') || '', marriageDate: f.get('marriageDate') || '', isDeceased: f.get('isDeceased') === 'on', deathDate: f.get('deathDate') || '', burialPlace: f.get('burialPlace') || '', role: f.get('role') || 'Child',
-      phone: f.get('phone') || '', address: f.get('address') || 'চট্টগ্রাম',
+      phone: f.get('phone') || '', address: f.get('address') || '',
       requestedBy: adminSession?.name || adminSession?.email,
       requestedAt: new Date().toISOString(),
       avatar: tempAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
@@ -642,8 +644,8 @@ export default function App() {
     setMembers(prev => prev.map(m => {
       if (m.id === updatedId) {
         return {
-          ...m, name: f.get('name'), bio: f.get('bio'), dob: f.get('dob'),
-          pob: f.get('pob') || 'চট্টগ্রাম', education: f.get('education') || '',
+          ...m, name: f.get('name'), ...Object.fromEntries(BIO_KEYS.map(k => [k, f.get(k) || ''])), dob: f.get('dob') || '',
+          pob: f.get('pob') || '', education: f.get('education') || '',
           profession: f.get('profession') || '', phone: f.get('phone') || '',
           address: f.get('address') || '', role: f.get('role') || m.role,
           fatherId: f.get('fatherId') || '', motherId: f.get('motherId') || '',
@@ -1214,7 +1216,7 @@ export default function App() {
                             <img src={p.avatar} alt={p.name} className="w-12 h-12 rounded-full object-cover border-2 border-[#D4AF37]" />
                             <div>
                               <h4 className="font-bold text-sm">{p.name}</h4>
-                              <p className="text-[10px] text-gray-400">{p.profession || 'পেশা অনির্ধারিত'} • {p.pob || 'চট্টগ্রাম'}</p>
+                              <p className="text-[10px] text-gray-400">{p.profession || 'পেশা অনির্ধারিত'} • {knownPob(p) || '—'}</p>
                               <p className="text-[10px] text-[#D4AF37]">অনুরোধকারী: {p.requestedBy || 'অজানা'}</p>
                             </div>
                           </div>
@@ -1286,10 +1288,7 @@ export default function App() {
                       <input name="marriageDate" type="date"  className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
-                    <textarea name="bio" rows="2" placeholder="সংক্ষিপ্ত জীবনী..." className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
-                  </div>
+                  <BioFields cls={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} known={knownBio} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পেশা</label>
@@ -1311,7 +1310,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জন্মস্থান</label>
-                      <input name="pob" type="text" placeholder="চট্টগ্রাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                      <input name="pob" type="text" placeholder="যেমন: চট্টগ্রাম" className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                     </div>
                   </div>
                   <div>
@@ -1536,8 +1535,8 @@ export default function App() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic leading-relaxed">{selectedMember.bio || 'জীবনী পাওয়া যায়নি।'}</p>
                 {!selectedMember.isDeceased && (
                   <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
-                    <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={formatDate(selectedMember.dob)} />
-                    <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={selectedMember.pob || 'চট্টগ্রাম'} />
+                    <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={(knownDob(selectedMember) ? formatDate(selectedMember.dob) : '—')} />
+                    <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={knownPob(selectedMember) || '—'} />
                     <InfoRow icon={<Briefcase className="w-3.5 h-3.5 text-emerald-500" />} label="পেশা" value={selectedMember.profession || '-'} />
                     <InfoRow icon={<GraduationCap className="w-3.5 h-3.5 text-emerald-500" />} label="শিক্ষা" value={selectedMember.education || '-'} />
                     <InfoRow icon={<Phone className="w-3.5 h-3.5 text-emerald-500" />} label="মোবাইল" value={selectedMember.phone || 'গোপন'} />
@@ -1603,10 +1602,7 @@ export default function App() {
                       <input name="marriageDate" type="date" defaultValue={isEditingMember.marriageDate || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                     </div>
                   </div>
-                  <div>
-                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জীবনী</label>
-                <textarea name="bio" rows="3" defaultValue={isEditingMember.bio} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
-              </div>
+                  <BioFields m={isEditingMember} cls={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} known={knownBio} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">পেশা</label>
@@ -1620,7 +1616,7 @@ export default function App() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">জন্ম তারিখ</label>
-                  <input name="dob" type="date" defaultValue={isEditingMember.dob} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
+                  <input name="dob" type="date" defaultValue={knownDob(isEditingMember) || ''} className={`w-full border rounded-xl p-3 bg-transparent ${theme.input}`} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">মোবাইল</label>
@@ -1836,7 +1832,7 @@ export default function App() {
               {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
               {tab === 'newsletter' && <>📰 পত্রিকা</>}
               {tab === 'eid' && <>🌙 ঈদের ফিতা</>}
-              {tab === 'story' && <>📖 বংশের গল্প</>}
+              {tab === 'story' && <>📖 জীবনী</>}
               {tab === 'request' && <>✉️ তথ্য পাঠান</>}
             </button>
           ))}
@@ -1875,7 +1871,7 @@ export default function App() {
                 {tab === 'capsules' && <>⏳ টাইম ক্যাপসুল</>}
                 {tab === 'newsletter' && <>📰 পত্রিকা</>}
                 {tab === 'eid' && <>🌙 ঈদের ফিতা</>}
-                {tab === 'story' && <>📖 বংশের গল্প</>}
+                {tab === 'story' && <>📖 জীবনী</>}
                 {tab === 'request' && <>✉️ তথ্য পাঠান</>}
               </button>
             ))}
@@ -2029,7 +2025,7 @@ export default function App() {
                     {!m.isDeceased && (
                       <>
                         <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-2"><Briefcase className="w-3 h-3" /><span>{m.profession || 'পেশা অনির্ধারিত'}</span></div>
-                        <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-1"><MapPin className="w-3 h-3" /><span>{m.pob || 'চট্টগ্রাম'}</span></div>
+                        <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-1"><MapPin className="w-3 h-3" /><span>{knownPob(m) || '—'}</span></div>
                       </>
                     )}
                     <button onClick={() => setSelectedMember(m)} className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 transition">
@@ -2097,7 +2093,7 @@ export default function App() {
 
         {activeTab === 'story' && (
           <div className={`p-4 lg:p-6 rounded-2xl border ${theme.card}`}>
-            <ChildStory members={members} />
+            <LifeBook members={members} gallery={gallery} events={events} onOpenMember={setSelectedMember} />
           </div>
         )}
 
@@ -2155,8 +2151,8 @@ export default function App() {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 italic leading-relaxed">{selectedMember.bio || 'জীবনী পাওয়া যায়নি।'}</p>
               {!selectedMember.isDeceased && (
                 <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
-                  <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={formatDate(selectedMember.dob)} />
-                  <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={selectedMember.pob || 'চট্টগ্রাম'} />
+                  <InfoRow icon={<Calendar className="w-3.5 h-3.5 text-emerald-500" />} label="জন্ম" value={(knownDob(selectedMember) ? formatDate(selectedMember.dob) : '—')} />
+                  <InfoRow icon={<MapPin className="w-3.5 h-3.5 text-emerald-500" />} label="স্থান" value={knownPob(selectedMember) || '—'} />
                   <InfoRow icon={<Briefcase className="w-3.5 h-3.5 text-emerald-500" />} label="পেশা" value={selectedMember.profession || '-'} />
                   <InfoRow icon={<GraduationCap className="w-3.5 h-3.5 text-emerald-500" />} label="শিক্ষা" value={selectedMember.education || '-'} />
                   <InfoRow icon={<Phone className="w-3.5 h-3.5 text-emerald-500" />} label="মোবাইল" value={selectedMember.phone || 'গোপন'} />
@@ -2182,7 +2178,7 @@ export default function App() {
       <footer className="bg-[#1E3F20] text-gray-400 text-center py-4 border-t border-[#D4AF37] text-[10px] font-bold space-y-1">
         <p>🛡️ {archiveTitle} &copy; ২০২৬ | সর্বস্বত্ব সংরক্ষিত</p>
         <p className="text-[#D4AF37]">ডিজিটাল কূলবৃক্ষ এবং প্রজন্মের স্মৃতি সংরক্ষণের একমাত্র বিশ্বস্ত পোর্টাল</p>
-      <p className="opacity-60 font-normal">সংস্করণ ২৮ নভেম্বর · ৫</p>
+      <p className="opacity-60 font-normal">সংস্করণ ২৮ নভেম্বর · ৬</p>
         </footer>
     </div>
   );

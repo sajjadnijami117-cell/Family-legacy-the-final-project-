@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { knownDob } from '@/lib/placeholders';
 import { selectRows, upsertRow, deleteRow } from '@/lib/supabase';
 
 const toBn = (n) => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
@@ -30,8 +31,8 @@ export function buildIssue(key, { members, events, gallery }) {
   const sameMonth = (iso) => isIso(iso) && parts(iso).m === mm;
 
   const birthdays = members
-    .filter(m => !m.isDeceased && sameMonth(m.dob) && parts(m.dob).y < y)
-    .map(m => ({ name: m.name, day: parts(m.dob).d, age: y - parts(m.dob).y }))
+    .filter(m => !m.isDeceased && sameMonth(knownDob(m)) && parts(knownDob(m)).y < y)
+    .map(m => ({ name: m.name, day: parts(knownDob(m)).d, age: y - parts(knownDob(m)).y }))
     .sort((a, b) => a.day - b.day);
 
   const seen = new Set();
